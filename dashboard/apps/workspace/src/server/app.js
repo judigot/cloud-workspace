@@ -154,6 +154,13 @@ function makeFallbackLabel(slug) {
     var second = parts[1].match(/^\d+$/) ? parts[1] : (parts[1][0] || "A");
     return "".concat(first).concat(second).toUpperCase();
 }
+function humanizeSlug(slug) {
+    return slug
+        .split("-")
+        .filter(Boolean)
+        .map(function (part) { return (/^\d+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)); })
+        .join(" ") || slug;
+}
 function makeFallbackHue(slug) {
     var hash = 0;
     for (var _i = 0, slug_1 = slug; _i < slug_1.length; _i++) {
@@ -260,6 +267,56 @@ function resolveAppIconUrl(slug, roots) {
         });
     });
 }
+function resolveAppTitle(slug, roots) {
+    return __awaiter(this, void 0, void 0, function () {
+        var root, htmlCandidates, _i, htmlCandidates_1, htmlPath, html, match, title, _a, packageJson, _b, _c, _d;
+        var _e;
+        return __generator(this, function (_f) {
+            switch (_f.label) {
+                case 0:
+                    root = roots.get(slug);
+                    if (!root)
+                        return [2 /*return*/, humanizeSlug(slug)];
+                    htmlCandidates = [node_path_1.default.join(root, "index.html"), node_path_1.default.join(root, "public", "index.html")];
+                    _i = 0, htmlCandidates_1 = htmlCandidates;
+                    _f.label = 1;
+                case 1:
+                    if (!(_i < htmlCandidates_1.length)) return [3 /*break*/, 6];
+                    htmlPath = htmlCandidates_1[_i];
+                    _f.label = 2;
+                case 2:
+                    _f.trys.push([2, 4, , 5]);
+                    return [4 /*yield*/, (0, promises_1.readFile)(htmlPath, "utf-8")];
+                case 3:
+                    html = _f.sent();
+                    match = html.match(/<title>([^<]+)<\/title>/i);
+                    title = (_e = match === null || match === void 0 ? void 0 : match[1]) === null || _e === void 0 ? void 0 : _e.trim();
+                    if (title)
+                        return [2 /*return*/, title];
+                    return [3 /*break*/, 5];
+                case 4:
+                    _a = _f.sent();
+                    return [3 /*break*/, 5];
+                case 5:
+                    _i++;
+                    return [3 /*break*/, 1];
+                case 6:
+                    _f.trys.push([6, 8, , 9]);
+                    _c = (_b = JSON).parse;
+                    return [4 /*yield*/, (0, promises_1.readFile)(node_path_1.default.join(root, "package.json"), "utf-8")];
+                case 7:
+                    packageJson = _c.apply(_b, [_f.sent()]);
+                    if (packageJson.name)
+                        return [2 /*return*/, humanizeSlug(packageJson.name)];
+                    return [3 /*break*/, 9];
+                case 8:
+                    _d = _f.sent();
+                    return [3 /*break*/, 9];
+                case 9: return [2 /*return*/, humanizeSlug(slug)];
+            }
+        });
+    });
+}
 function ensureUploadRoot() {
     (0, node_fs_1.mkdirSync)(WORKSPACE_UPLOAD_ROOT, { recursive: true });
 }
@@ -351,8 +408,9 @@ function extensionFor(file) {
             return ".jpg";
     }
 }
-function makeSavedName(file) {
-    return "".concat(Date.now(), "-").concat(sanitizeBaseName(file.name), "-").concat((0, node_crypto_1.randomUUID)().slice(0, 6)).concat(extensionFor(file));
+function makeSavedName(file, content) {
+    var hash = (0, node_crypto_1.createHash)("sha256").update(content).digest("hex").slice(0, 10);
+    return "".concat(sanitizeBaseName(file.name), "-").concat(hash).concat(extensionFor(file));
 }
 exports.app = new hono_1.Hono();
 exports.app.use("/*", (0, cors_1.cors)());
@@ -407,16 +465,19 @@ exports.app.get("/api/apps", function (c) { return __awaiter(void 0, void 0, voi
                                     _c.label = 11;
                                 case 11:
                                     _b = {
-                                        slug: raw.slug,
-                                        type: raw.type,
-                                        frontendPort: raw.frontendPort,
-                                        backendPort: raw.backendPort,
-                                        options: raw.options,
-                                        url: "https://".concat(domain, "/").concat(raw.slug, "/"),
-                                        status: status
+                                        slug: raw.slug
                                     };
+                                    return [4 /*yield*/, resolveAppTitle(raw.slug, appRoots)];
+                                case 12:
+                                    _b.title = _c.sent(),
+                                        _b.type = raw.type,
+                                        _b.frontendPort = raw.frontendPort,
+                                        _b.backendPort = raw.backendPort,
+                                        _b.options = raw.options,
+                                        _b.url = "https://".concat(domain, "/").concat(raw.slug, "/"),
+                                        _b.status = status;
                                     return [4 /*yield*/, resolveAppIconUrl(raw.slug, appRoots)];
-                                case 12: return [2 /*return*/, (_b.iconUrl = _c.sent(),
+                                case 13: return [2 /*return*/, (_b.iconUrl = _c.sent(),
                                         _b.fallbackLabel = makeFallbackLabel(raw.slug),
                                         _b.fallbackHue = makeFallbackHue(raw.slug),
                                         _b)];
@@ -493,14 +554,14 @@ exports.app.get("/api/uploads/file/:savedName", function (c) { return __awaiter(
     });
 }); });
 exports.app.post("/api/uploads", function (c) { return __awaiter(void 0, void 0, void 0, function () {
-    var formData, files, uploaded, _i, files_1, file, savedName, serverPath, _a, _b, _c, _d, info, asset;
-    return __generator(this, function (_e) {
-        switch (_e.label) {
+    var formData, files, uploaded, _i, files_1, file, content, _a, _b, savedName, serverPath, info, asset;
+    return __generator(this, function (_c) {
+        switch (_c.label) {
             case 0:
                 ensureUploadRoot();
                 return [4 /*yield*/, c.req.formData()];
             case 1:
-                formData = _e.sent();
+                formData = _c.sent();
                 files = formData
                     .getAll("files")
                     .filter(function (entry) { return entry instanceof File && entry.size > 0; });
@@ -509,25 +570,25 @@ exports.app.post("/api/uploads", function (c) { return __awaiter(void 0, void 0,
                 }
                 uploaded = [];
                 _i = 0, files_1 = files;
-                _e.label = 2;
+                _c.label = 2;
             case 2:
                 if (!(_i < files_1.length)) return [3 /*break*/, 7];
                 file = files_1[_i];
                 if (file.size > 20 * 1024 * 1024) {
                     return [2 /*return*/, c.json({ error: "".concat(file.name, " is larger than 20 MB.") }, 400)];
                 }
-                savedName = makeSavedName(file);
-                serverPath = node_path_1.default.join(WORKSPACE_UPLOAD_ROOT, savedName);
-                _a = promises_1.writeFile;
-                _b = [serverPath];
-                _d = (_c = Buffer).from;
+                _b = (_a = Buffer).from;
                 return [4 /*yield*/, file.arrayBuffer()];
-            case 3: return [4 /*yield*/, _a.apply(void 0, _b.concat([_d.apply(_c, [_e.sent()])]))];
+            case 3:
+                content = _b.apply(_a, [_c.sent()]);
+                savedName = makeSavedName(file, content);
+                serverPath = node_path_1.default.join(WORKSPACE_UPLOAD_ROOT, savedName);
+                return [4 /*yield*/, (0, promises_1.writeFile)(serverPath, content)];
             case 4:
-                _e.sent();
+                _c.sent();
                 return [4 /*yield*/, (0, promises_1.stat)(serverPath)];
             case 5:
-                info = _e.sent();
+                info = _c.sent();
                 asset = {
                     name: savedName,
                     mimeType: file.type || mimeTypeFor(savedName),
@@ -537,7 +598,7 @@ exports.app.post("/api/uploads", function (c) { return __awaiter(void 0, void 0,
                     url: "/api/uploads/file/".concat(encodeURIComponent(savedName)),
                 };
                 uploaded.push(asset);
-                _e.label = 6;
+                _c.label = 6;
             case 6:
                 _i++;
                 return [3 /*break*/, 2];

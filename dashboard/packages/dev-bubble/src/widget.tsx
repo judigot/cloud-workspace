@@ -84,7 +84,7 @@ const WIDGET_CSS = `
     width: ${BUBBLE_SIZE}px;
     height: ${BUBBLE_SIZE}px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: radial-gradient(circle at center, #2a2a2a 0%, #1a1a1a 58%, #090909 100%);
     border: none;
     cursor: grab;
     display: flex;
@@ -100,13 +100,13 @@ const WIDGET_CSS = `
     animation: db-btn-enter ${ANIM_DURATION}ms cubic-bezier(0.25, 1, 0.5, 1);
   }
   .db-btn-terminal {
-    background: linear-gradient(135deg, #0f766e 0%, #155e75 100%);
+    background: radial-gradient(circle at center, #2fae9f 0%, #177b73 58%, #0a3f44 100%);
   }
   .db-btn-apps {
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: radial-gradient(circle at center, #6ea3ff 0%, #3172f2 58%, #17398d 100%);
   }
   .db-btn-files {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: radial-gradient(circle at center, #f2c55d 0%, #f2a617 58%, #9a5906 100%);
   }
   @keyframes db-btn-enter {
     from { opacity: 0; }
@@ -154,19 +154,19 @@ const WIDGET_CSS = `
   }
   .db-side-btn:focus, .db-side-btn:focus-visible { outline: none; }
   .db-home {
-    background: linear-gradient(135deg, #2d3436 0%, #636e72 100%);
+    background: radial-gradient(circle at center, #717a7e 0%, #4e565a 58%, #262c2f 100%);
   }
   .db-terminal {
-    background: linear-gradient(135deg, #0f766e 0%, #155e75 100%);
+    background: radial-gradient(circle at center, #2fae9f 0%, #177b73 58%, #0a3f44 100%);
   }
   .db-assistant {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: radial-gradient(circle at center, #2a2a2a 0%, #1a1a1a 58%, #090909 100%);
   }
   .db-apps {
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: radial-gradient(circle at center, #6ea3ff 0%, #3172f2 58%, #17398d 100%);
   }
   .db-files {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    background: radial-gradient(circle at center, #f2c55d 0%, #f2a617 58%, #9a5906 100%);
   }
   .db-side-btn-visible {
     transform: translateX(0) scale(1) !important;

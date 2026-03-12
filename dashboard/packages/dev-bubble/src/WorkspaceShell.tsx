@@ -2,6 +2,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   type ChangeEvent,
   type FC,
@@ -12,6 +13,7 @@ import { FitAddon } from "@xterm/addon-fit";
 
 export interface IApp {
   slug: string;
+  title: string;
   url: string;
   status: "up" | "down" | "unknown";
   iconUrl: string | null;
@@ -104,6 +106,15 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
 
+function normalizeFilterText(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesCompactQuery(query: string, ...fields: Array<string | null | undefined>) {
+  if (!query) return true;
+  return fields.some((field) => field?.toLowerCase().includes(query));
+}
+
 const AppTileIcon: FC<{ app: IApp }> = ({ app }) => {
   const [failed, setFailed] = useState(false);
   const showImage = Boolean(app.iconUrl) && !failed;
@@ -134,6 +145,31 @@ const AppTileIcon: FC<{ app: IApp }> = ({ app }) => {
     </div>
   );
 };
+
+const CompactFilterBar: FC<{
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  count: number;
+  chips?: ReactNode;
+  actions?: ReactNode;
+}> = ({ value, onChange, placeholder, count, chips, actions }) => (
+  <div className="ws-filterbar">
+    <div className="ws-filterbar-top">
+      <label className="ws-filterbar-search">
+        <span className="ws-filterbar-icon">/</span>
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+      </label>
+      <span className="ws-filterbar-count">{count}</span>
+      {actions}
+    </div>
+    {chips ? <div className="ws-filterbar-chips">{chips}</div> : null}
+  </div>
+);
 
 export function useUploads() {
   const [assets, setAssets] = useState<IUploadAsset[]>([]);
@@ -398,67 +434,148 @@ const AssistantPanel: FC<{ opencodeUrl: string }> = ({ opencodeUrl }) => (
   />
 );
 
-const AppsPanel: FC<{ apps: IApp[]; currentSlug: string }> = ({ apps, currentSlug }) => (
-  <div className="ws-apps-panel">
-    <div className="ws-apps-grid">
-      {apps.map((app) => (
-        <a
-          key={app.slug}
-          href={app.url}
-          className={`ws-app-card${app.slug === currentSlug ? " ws-app-card-active" : ""}`}
+const AppsPanel: FC<{ apps: IApp[]; currentSlug: string }> = ({ apps, currentSlug }) => {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "up" | "down">("all");
+
+  const filteredApps = useMemo(() => {
+    const normalized = normalizeFilterText(query);
+    return [...apps]
+      .filter((app) => matchesCompactQuery(normalized, app.slug, app.fallbackLabel))
+      .filter((app) => (statusFilter === "all" ? true : app.status === statusFilter))
+      .sort((a, b) => {
+        if (a.slug === currentSlug) return -1;
+        if (b.slug === currentSlug) return 1;
+        if (a.status === "up" && b.status !== "up") return -1;
+        if (b.status === "up" && a.status !== "up") return 1;
+        return a.slug.localeCompare(b.slug);
+      });
+  }, [apps, currentSlug, query, statusFilter]);
+
+  return (
+    <div className="ws-apps-panel">
+      <CompactFilterBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search apps"
+        count={filteredApps.length}
+        chips={(
+          <>
+            {(["all", "up", "down"] as const).map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                className={`ws-filter-chip${statusFilter === filter ? " ws-filter-chip-active" : ""}`}
+                onClick={() => setStatusFilter(filter)}
+              >
+                {filter === "all" ? "All" : filter === "up" ? "Running" : "Stopped"}
+              </button>
+            ))}
+          </>
+        )}
+      />
+      <div className="ws-apps-grid">
+        {filteredApps.map((app) => (
+          <a
+            key={app.slug}
+            href={app.url}
+            className={`ws-app-card${app.slug === currentSlug ? " ws-app-card-active" : ""}`}
         >
           <AppTileIcon app={app} />
-          <div className="ws-app-name">{app.slug}</div>
-          <div className={`ws-app-dot ws-app-dot-${app.status}`} />
+          <div className="ws-app-title">{app.title}</div>
+          <div className="ws-app-meta">
+            <span className="ws-app-slug">{app.slug}</span>
+            <div className={`ws-app-dot ws-app-dot-${app.status}`} />
+          </div>
         </a>
       ))}
+      </div>
+      {filteredApps.length === 0 ? <div className="ws-panel-empty">No apps match</div> : null}
     </div>
-  </div>
-);
+  );
+};
 
 const FilesPanel: FC<{
   assets: IUploadAsset[];
   uploading: boolean;
   uploadInputRef: React.RefObject<HTMLInputElement | null>;
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
-}> = ({ assets, uploading, uploadInputRef, onUpload }) => (
-  <div className="ws-files-mini">
-    <input
-      ref={uploadInputRef}
-      className="ws-upload-input"
-      type="file"
-      accept="image/*,.pdf,.txt,.md,.json"
-      multiple
-      onChange={onUpload}
-    />
-    <div className="ws-files-header">
-      <span>Files</span>
-      <button className="ws-files-upload-btn" onClick={() => uploadInputRef.current?.click()}>
-        {uploading ? "Uploading..." : "Upload"}
-      </button>
-    </div>
-    <div className="ws-files-list">
-      {assets.length === 0 ? (
-        <div className="ws-files-empty">No files yet</div>
-      ) : (
-        assets.map((asset) => (
-          <div key={asset.name} className="ws-file-mini-item">
-            {isImage(asset) ? (
-              <img src={asset.url} alt={asset.name} className="ws-file-mini-thumb" />
-            ) : (
-              <div className="ws-file-mini-icon">{asset.name.split(".").pop()}</div>
-            )}
-            <span className="ws-file-mini-name">{asset.name}</span>
-            <div className="ws-file-mini-actions">
-              <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(asset.name)}>Name</button>
-              <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(toAbsoluteUrl(asset.url))}>URL</button>
+}> = ({ assets, uploading, uploadInputRef, onUpload }) => {
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "images" | "other">("all");
+
+  const filteredAssets = useMemo(() => {
+    const normalized = normalizeFilterText(query);
+    return [...assets]
+      .filter((asset) => matchesCompactQuery(normalized, asset.name, asset.mimeType))
+      .filter((asset) => {
+        if (typeFilter === "all") return true;
+        return typeFilter === "images" ? isImage(asset) : !isImage(asset);
+      })
+      .sort((a, b) => {
+        const timeDiff = Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt);
+        return timeDiff !== 0 ? timeDiff : a.name.localeCompare(b.name);
+      });
+  }, [assets, query, typeFilter]);
+
+  return (
+    <div className="ws-files-mini">
+      <input
+        ref={uploadInputRef}
+        className="ws-upload-input"
+        type="file"
+        accept="image/*,.pdf,.txt,.md,.json"
+        multiple
+        onChange={onUpload}
+      />
+      <CompactFilterBar
+        value={query}
+        onChange={setQuery}
+        placeholder="Search files"
+        count={filteredAssets.length}
+        actions={(
+          <button className="ws-files-upload-btn" onClick={() => uploadInputRef.current?.click()}>
+            {uploading ? "Uploading..." : "Upload"}
+          </button>
+        )}
+        chips={(
+          <>
+            {(["all", "images", "other"] as const).map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                className={`ws-filter-chip${typeFilter === filter ? " ws-filter-chip-active" : ""}`}
+                onClick={() => setTypeFilter(filter)}
+              >
+                {filter === "all" ? "All" : filter === "images" ? "Images" : "Other"}
+              </button>
+            ))}
+          </>
+        )}
+      />
+      <div className="ws-files-list">
+        {filteredAssets.length === 0 ? (
+          <div className="ws-files-empty">No files match</div>
+        ) : (
+          filteredAssets.map((asset) => (
+            <div key={asset.name} className="ws-file-mini-item">
+              {isImage(asset) ? (
+                <img src={asset.url} alt={asset.name} className="ws-file-mini-thumb" />
+              ) : (
+                <div className="ws-file-mini-icon">{asset.name.split(".").pop()}</div>
+              )}
+              <span className="ws-file-mini-name">{asset.name}</span>
+              <div className="ws-file-mini-actions">
+                <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(asset.name)}>Name</button>
+                <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(toAbsoluteUrl(asset.url))}>URL</button>
+              </div>
             </div>
-          </div>
-        ))
-      )}
+          ))
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const WorkspaceShell: FC<WorkspaceShellProps> = ({
   opencodeUrl,
@@ -575,6 +692,86 @@ export const WORKSPACE_SHELL_CSS = `
     position: relative;
     flex: 1;
     min-height: 0;
+  }
+  .ws-filterbar {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    width: min(100%, 980px);
+    background: #0f1115;
+    padding-bottom: 8px;
+  }
+  .ws-filterbar-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ws-filterbar-search {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+  }
+  .ws-filterbar-search input {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: #f5f7ff;
+    font-size: 12px;
+  }
+  .ws-filterbar-search input::placeholder {
+    color: #7f8aa6;
+  }
+  .ws-filterbar-icon,
+  .ws-filterbar-count {
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .ws-filterbar-count {
+    min-width: 24px;
+    text-align: right;
+  }
+  .ws-filterbar-chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .ws-filterbar-chips::-webkit-scrollbar { display: none; }
+  .ws-filter-chip {
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: #aeb9d0;
+    border-radius: 999px;
+    min-height: 28px;
+    padding: 0 10px;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .ws-filter-chip-active {
+    color: #ffffff;
+    background: rgba(99,102,241,0.2);
+    border-color: rgba(99,102,241,0.35);
+  }
+  .ws-panel-empty {
+    color: #64748b;
+    font-size: 12px;
+    text-align: center;
+    padding: 24px 12px;
   }
   .ws-files-panel {
     position: absolute;
@@ -758,8 +955,12 @@ export const WORKSPACE_SHELL_CSS = `
     height: 100%;
     padding: 12px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   .ws-apps-grid {
+    width: min(100%, 980px);
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
@@ -813,18 +1014,32 @@ export const WORKSPACE_SHELL_CSS = `
     display: block;
     border-radius: 8px;
   }
-  .ws-app-name {
+  .ws-app-title {
     font-size: 12px;
     font-weight: 600;
     color: #e2e8f0;
     text-align: center;
     word-break: break-all;
   }
+  .ws-app-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .ws-app-slug {
+    font-size: 10px;
+    color: #94a3b8;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .ws-app-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    margin-top: 6px;
+    flex-shrink: 0;
   }
   .ws-app-dot-up {
     background: #22c55e;
@@ -843,19 +1058,7 @@ export const WORKSPACE_SHELL_CSS = `
     display: flex;
     flex-direction: column;
     padding: 12px;
-  }
-  .ws-files-header {
-    display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    margin-bottom: 10px;
-  }
-  .ws-files-header span {
-    font-size: 14px;
-    font-weight: 700;
-    color: #e2e8f0;
   }
   .ws-files-upload-btn {
     border: 1px solid rgba(255,255,255,0.12);
@@ -869,6 +1072,7 @@ export const WORKSPACE_SHELL_CSS = `
     cursor: pointer;
   }
   .ws-files-list {
+    width: min(100%, 920px);
     flex: 1;
     overflow-y: auto;
   }
@@ -882,6 +1086,8 @@ export const WORKSPACE_SHELL_CSS = `
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
+    max-width: 920px;
     padding: 8px;
     border-radius: 10px;
     background: rgba(255,255,255,0.03);
@@ -906,7 +1112,8 @@ export const WORKSPACE_SHELL_CSS = `
     color: #94a3b8;
   }
   .ws-file-mini-name {
-    flex: 1;
+    flex: 1 1 420px;
+    max-width: 520px;
     font-size: 11px;
     color: #e2e8f0;
     overflow: hidden;
@@ -917,6 +1124,8 @@ export const WORKSPACE_SHELL_CSS = `
     display: flex;
     gap: 6px;
     flex-shrink: 0;
+    margin-left: auto;
+    justify-content: flex-end;
   }
   .ws-file-mini-copy {
     border: 1px solid rgba(255,255,255,0.1);
@@ -1016,8 +1225,26 @@ export const WORKSPACE_SHELL_CSS = `
   }
 
   @media (max-width: 480px) {
+    .ws-apps-grid,
+    .ws-files-list,
+    .ws-file-mini-item,
+    .ws-file-mini-name {
+      width: 100%;
+      max-width: none;
+    }
+    .ws-file-mini-name {
+      flex: 1;
+    }
     .ws-files-panel {
       padding: 10px;
+    }
+    .ws-filterbar-top {
+      flex-wrap: wrap;
+    }
+    .ws-filterbar-count {
+      order: 3;
+      width: 100%;
+      text-align: left;
     }
     .ws-files-panel-head {
       align-items: flex-start;

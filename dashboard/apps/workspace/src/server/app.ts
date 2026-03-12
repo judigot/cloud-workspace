@@ -22,6 +22,7 @@ interface IUploadAsset {
 
 interface IApp {
   slug: string;
+  title: string;
   type: "frontend" | "fullstack" | "laravel";
   frontendPort: number | null;
   backendPort: number | null;
@@ -160,6 +161,14 @@ function makeFallbackLabel(slug: string) {
   return `${first}${second}`.toUpperCase();
 }
 
+function humanizeSlug(slug: string) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => (/^\d+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(" ") || slug;
+}
+
 function makeFallbackHue(slug: string) {
   let hash = 0;
   for (const char of slug) hash = (hash * 31 + char.charCodeAt(0)) % 360;
@@ -217,6 +226,41 @@ async function resolveAppIconUrl(slug: string, roots: Map<string, string>) {
   }
 
   return null;
+}
+
+async function resolveAppTitle(slug: string, roots: Map<string, string>) {
+  const root = roots.get(slug);
+  if (!root) return humanizeSlug(slug);
+  const humanizedSlug = humanizeSlug(slug);
+
+  const htmlCandidates = [path.join(root, "index.html"), path.join(root, "public", "index.html")];
+  for (const htmlPath of htmlCandidates) {
+    try {
+      const html = await readFile(htmlPath, "utf-8");
+      const match = html.match(/<title>([^<]+)<\/title>/i);
+      const title = match?.[1]?.trim();
+      if (title) {
+        return title.toLowerCase() === slug.toLowerCase() ? humanizedSlug : title;
+      }
+    } catch {
+      // ignore missing html files
+    }
+  }
+
+  try {
+    const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf-8")) as {
+      name?: string;
+    };
+    if (packageJson.name) {
+      return packageJson.name.toLowerCase() === slug.toLowerCase()
+        ? humanizedSlug
+        : humanizeSlug(packageJson.name);
+    }
+  } catch {
+    // ignore missing package.json
+  }
+
+  return humanizedSlug;
 }
 
 function ensureUploadRoot() {
@@ -337,6 +381,7 @@ app.get("/api/apps", async (c) => {
 
       return {
         slug: raw.slug,
+        title: await resolveAppTitle(raw.slug, appRoots),
         type: raw.type,
         frontendPort: raw.frontendPort,
         backendPort: raw.backendPort,
