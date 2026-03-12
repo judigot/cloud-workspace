@@ -136,14 +136,17 @@ No editor. No terminal. No laptop. Just your phone and the running app.
 
 ### Journey 4: Navigate Between Apps
 
-Both `judigot.com` and the DevBubble panel show the same **WorkspaceShell** UI:
+The public and dev surfaces now have different purposes:
 
-- **App strip** (top) — horizontal scrollable chips for each registered app
-  - **Green dot** = dev server running
-  - **Gray dot** = dev server stopped
-  - Tap a chip to navigate the browser to that app
-  - Current app is highlighted
-- **OpenCode** (below) — AI coding assistant filling the remaining space
+- `judigot.com/<slug>/` — clean client-facing app page, no dev widget injected
+- `dev.judigot.com/<slug>/` — auth-protected development view with the DevBubble and full workspace shell
+
+Inside the DevBubble panel, the shared **WorkspaceShell** gives you:
+
+- **Assistant** — OpenCode chat
+- **Terminal** — shell access
+- **Apps** — searchable launcher with icon/title/status metadata
+- **Files** — searchable uploaded asset picker
 
 On app pages, the DevBubble appears as a draggable floating button (bottom-right, like a Messenger chat head):
 - Minimized: exactly one floating bubble is visible and snapped to the screen edge
@@ -153,7 +156,7 @@ On app pages, the DevBubble appears as a draggable floating button (bottom-right
 - Tap the currently active bubble again — minimize, and that same bubble becomes the new floating minimized identity
 - Tap Home — navigates back to `judigot.com`
 
-**How it works:** The `WorkspaceShell` is a single React component shared by both contexts. On `judigot.com` it renders as the full page. On app pages, nginx injects a `<script>` tag via `sub_filter` that loads a self-contained bundle (`/dev-bubble.js`, ~62KB gzipped) which renders the shell inside the bubble's overlay panel.
+**How it works:** The `WorkspaceShell` is a single React component shared by both contexts. On `judigot.com` it renders as the full page workspace. On `dev.judigot.com/<slug>/`, nginx injects a `<script>` tag via `sub_filter` that loads a self-contained bundle (`/dev-bubble.js`) and renders the shell inside the bubble's overlay panel.
 
 ---
 
@@ -196,12 +199,12 @@ judigot.com
         ├─ /api/*         → Dashboard Hono API (:3100)
         │                   reads .env, checks port health
         ├─ /dev-bubble.js → Static widget bundle (/var/www/static/)
-        ├─ /<slug>/       → App Vite frontend + sub_filter injects DevBubble
+        ├─ /<slug>/       → Public app Vite/frontend route (clean, no widget)
         ├─ /<slug>/api/   → App backend API (fullstack only)
         ├─ /<slug>/ws     → App websocket (fullstack+ws)
         └─ /<slug>/       → App backend + sub_filter (laravel)
 
-dev.judigot.com → OpenCode (:4097, auth injected by nginx)
+dev.judigot.com → OpenCode (:4097, auth + dev app routes with widget injection)
 ```
 
 **Unified WorkspaceShell:**
