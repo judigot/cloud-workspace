@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   closePanel,
-  getSecondaryPanel,
   initialBubblePanelState,
   openPanel,
   tapPanelBubble,
@@ -49,8 +48,10 @@ describe("widget bubble invariants", () => {
     expectClosedIdentity(closed);
   });
 
-  it("secondary panel is always opposite of collapsed panel", () => {
-    expect(getSecondaryPanel("assistant")).toBe("terminal");
-    expect(getSecondaryPanel("terminal")).toBe("assistant");
+  it("closePanel preserves the triggering panel as collapsed identity", () => {
+    const opened = openPanel(initialBubblePanelState, "assistant");
+    const closed = closePanel(opened, "apps");
+    expectClosedIdentity(closed);
+    expect(closed.collapsedPanel).toBe("apps");
   });
 });

@@ -30,7 +30,6 @@ import React, {
 import { createRoot } from "react-dom/client";
 import { WorkspaceShell, WORKSPACE_SHELL_CSS } from "./WorkspaceShell";
 import {
-  getSecondaryPanel,
   initialBubblePanelState,
   openPanel as openPanelState,
   closePanel as closePanelState,
@@ -103,6 +102,12 @@ const WIDGET_CSS = `
   .db-btn-terminal {
     background: linear-gradient(135deg, #0f766e 0%, #155e75 100%);
   }
+  .db-btn-apps {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  }
+  .db-btn-files {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  }
   @keyframes db-btn-enter {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -156,6 +161,12 @@ const WIDGET_CSS = `
   }
   .db-assistant {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  .db-apps {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  }
+  .db-files {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   }
   .db-side-btn-visible {
     transform: translateX(0) scale(1) !important;
@@ -224,6 +235,18 @@ const IconHome: FC = () => (
 const IconTerminal: FC = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
     <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v10h14V7H5zm2.2 2.3 3 2.7-3 2.7 1.4 1.5 4.7-4.2-4.7-4.2-1.4 1.5zM12 15h5v-2h-5v2z" />
+  </svg>
+);
+
+const IconApps: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26">
+    <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z" />
+  </svg>
+);
+
+const IconFiles: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="26" height="26">
+    <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z" />
   </svg>
 );
 
@@ -395,7 +418,7 @@ const DevBubbleWidget: FC = () => {
     (e: ReactPointerEvent<HTMLButtonElement>) => {
       if (isOpen) {
         e.preventDefault();
-        tapPanelBubble(collapsedPanel);
+        closePanel(activePanel);
         return;
       }
       if (!dragging.current) return;
@@ -409,7 +432,7 @@ const DevBubbleWidget: FC = () => {
         openPanel(collapsedPanel);
       }
     },
-    [isOpen, collapsedPanel, tapPanelBubble, snapToEdge, openPanel],
+    [isOpen, activePanel, closePanel, collapsedPanel, snapToEdge, openPanel],
   );
 
   const onPointerCancel = useCallback(() => {
@@ -443,28 +466,33 @@ const DevBubbleWidget: FC = () => {
   const lane = BUBBLE_SIZE + BUTTON_GAP;
   const sideDir = dockSide === "right" ? -1 : 1;
 
-  const secondaryPanel: PanelId = getSecondaryPanel(collapsedPanel);
+  const sidePanels: PanelId[] = ["assistant", "terminal", "apps", "files"].filter(
+    (panel) => panel !== collapsedPanel,
+  );
+  const sidePanelOffsets = Object.fromEntries(
+    sidePanels.map((panel, index) => [panel, index + 1]),
+  ) as Record<PanelId, number>;
 
-  // Secondary panel bubble sits adjacent to the main bubble. Home is outermost.
-  const secondaryLeft = pos.x + sideDir * lane;
-  const homeLeft = pos.x + sideDir * lane * 2;
-  const homeTop = pos.y;
-  const secondaryTop = pos.y;
+  // Side buttons layout while open: main bubble at docked edge, then remaining panels, then home.
+  const homeLeft = pos.x + sideDir * lane * (sidePanels.length + 1);
+  const rowY = pos.y;
 
-  // Hidden-state translateX pushes side buttons behind the bubble.
-  const secondaryHiddenTx = dockSide === "right" ? lane : -lane;
-  const homeHiddenTx = dockSide === "right" ? lane * 2 : -lane * 2;
+  const homeHiddenTx = dockSide === "right" ? lane * (sidePanels.length + 1) : -lane * (sidePanels.length + 1);
 
   // Panel anchored below the bubble row.
   const panelTop = pos.y + BUBBLE_SIZE + BUBBLE_MARGIN;
   const panelTopClosed = window.innerHeight + 10;
 
   // ── Classes ──
+  const isTerminalActive = isOpen && activePanel === "terminal";
+  const isFilesActive = isOpen && activePanel === "files";
+  const isAppsActive = isOpen && activePanel === "apps";
   const isMainActive = activePanel === collapsedPanel;
-  const isSecondaryActive = isOpen && activePanel === secondaryPanel;
 
   let bubbleClass = "db-btn";
   if (collapsedPanel === "terminal") bubbleClass += " db-btn-terminal";
+  else if (collapsedPanel === "apps") bubbleClass += " db-btn-apps";
+  else if (collapsedPanel === "files") bubbleClass += " db-btn-files";
   if (animating) bubbleClass += " db-btn-animating";
   if (isMainActive) bubbleClass += " db-active";
 
@@ -476,9 +504,32 @@ const DevBubbleWidget: FC = () => {
   let homeClass = "db-side-btn db-home";
   if (homeVisible) homeClass += " db-side-btn-visible";
 
-  let secondaryClass = `db-side-btn ${secondaryPanel === "terminal" ? "db-terminal" : "db-assistant"}`;
-  if (homeVisible) secondaryClass += " db-side-btn-visible";
-  if (isSecondaryActive) secondaryClass += " db-active";
+  const panelMeta: Record<PanelId, { className: string; label: string; icon: React.ReactNode; active: boolean }> = {
+    assistant: {
+      className: "db-assistant",
+      label: "Assistant",
+      icon: <IconChat />,
+      active: isOpen && activePanel === "assistant",
+    },
+    terminal: {
+      className: "db-terminal",
+      label: "Terminal",
+      icon: <IconTerminal />,
+      active: isTerminalActive,
+    },
+    apps: {
+      className: "db-apps",
+      label: "Apps",
+      icon: <IconApps />,
+      active: isAppsActive,
+    },
+    files: {
+      className: "db-files",
+      label: "Files",
+      icon: <IconFiles />,
+      active: isFilesActive,
+    },
+  };
 
   return (
     <>
@@ -501,9 +552,7 @@ const DevBubbleWidget: FC = () => {
         title="Back to dashboard"
         style={{
           left: homeLeft,
-          top: homeTop,
-          // When hidden, translate behind the bubble (direction depends on dock side).
-          // .db-home-visible overrides this with translateX(0) via !important.
+          top: rowY,
           transform: `translateX(${homeHiddenTx}px) scale(0.8)`,
         }}
         onClick={() => { window.location.href = DASHBOARD_URL; }}
@@ -511,32 +560,42 @@ const DevBubbleWidget: FC = () => {
         <IconHome />
       </button>
 
-      {/* Secondary panel button — toggles to the other panel */}
-      <button
-        className={secondaryClass}
-        aria-label={secondaryPanel === "terminal" ? "Open terminal" : "Open assistant"}
-        title={secondaryPanel === "terminal" ? "Terminal" : "Assistant"}
-        style={{
-          left: secondaryLeft,
-          top: secondaryTop,
-          transform: `translateX(${secondaryHiddenTx}px) scale(0.8)`,
-        }}
-        onClick={() => tapPanelBubble(secondaryPanel)}
-      >
-        {secondaryPanel === "terminal" ? <IconTerminal /> : <IconChat />}
-      </button>
+      {sidePanels.map((panel) => {
+        const offset = sidePanelOffsets[panel];
+        const meta = panelMeta[panel];
+        let sideClass = `db-side-btn ${meta.className}`;
+        if (homeVisible) sideClass += " db-side-btn-visible";
+        if (meta.active) sideClass += " db-active";
 
-      {/* Bubble — always visible */}
+        return (
+          <button
+            key={panel}
+            className={sideClass}
+            aria-label={meta.label}
+            title={meta.label}
+            style={{
+              left: pos.x + sideDir * lane * offset,
+              top: rowY,
+              transform: `translateX(${dockSide === "right" ? lane * offset : -lane * offset}px) scale(0.8)`,
+            }}
+            onClick={() => tapPanelBubble(panel)}
+          >
+            {meta.icon}
+          </button>
+        );
+      })}
+
+      {/* Main bubble — stays docked to the side when minimized */}
       <button
         className={bubbleClass}
-        aria-label={isOpen ? "Toggle selected panel" : collapsedPanel === "terminal" ? "Open terminal" : "Open assistant"}
-        style={{ left: pos.x, top: pos.y }}
+        aria-label={isOpen ? "Minimize" : `Open ${collapsedPanel}`}
+        style={{ left: pos.x, top: rowY }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
       >
-        {collapsedPanel === "terminal" ? <IconTerminal /> : <IconChat />}
+        {collapsedPanel === "terminal" ? <IconTerminal /> : collapsedPanel === "apps" ? <IconApps /> : collapsedPanel === "files" ? <IconFiles /> : <IconChat />}
       </button>
     </>
   );

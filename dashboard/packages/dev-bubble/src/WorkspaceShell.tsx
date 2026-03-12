@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  type ChangeEvent,
   type FC,
   type ReactNode,
 } from "react";
@@ -11,9 +12,11 @@ import { FitAddon } from "@xterm/addon-fit";
 
 export interface IApp {
   slug: string;
-  port: number;
   url: string;
   status: "up" | "down" | "unknown";
+  iconUrl: string | null;
+  fallbackLabel: string;
+  fallbackHue: number;
 }
 
 export interface IConfig {
@@ -22,7 +25,16 @@ export interface IConfig {
   apps: IApp[];
 }
 
-type WorkspaceMode = "assistant" | "terminal";
+export interface IUploadAsset {
+  name: string;
+  mimeType: string;
+  size: number;
+  modifiedAt: string;
+  serverPath: string;
+  url: string;
+}
+
+type WorkspaceMode = "assistant" | "terminal" | "apps" | "files";
 
 export interface WorkspaceShellProps {
   opencodeUrl: string;
@@ -72,6 +84,79 @@ export function useApps() {
   }, [fetchApps]);
 
   return { config, loading };
+}
+
+function formatSize(size: number) {
+  if (size < 1024) return `${String(size)} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isImage(asset: IUploadAsset) {
+  return asset.mimeType.startsWith("image/");
+}
+
+function toAbsoluteUrl(url: string) {
+  return new URL(url, window.location.origin).toString();
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
+}
+
+const AppTileIcon: FC<{ app: IApp }> = ({ app }) => {
+  const [failed, setFailed] = useState(false);
+  const showImage = Boolean(app.iconUrl) && !failed;
+
+  if (showImage) {
+    return (
+      <div className="ws-app-icon ws-app-icon-image-wrap">
+        <img
+          className="ws-app-icon-image"
+          src={app.iconUrl ?? undefined}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="ws-app-icon ws-app-icon-fallback"
+      aria-hidden="true"
+      style={{
+        background: `linear-gradient(135deg, hsl(${app.fallbackHue} 72% 58%), hsl(${(app.fallbackHue + 28) % 360} 70% 42%))`,
+      }}
+    >
+      {app.fallbackLabel}
+    </div>
+  );
+};
+
+export function useUploads() {
+  const [assets, setAssets] = useState<IUploadAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchUploads = useCallback(async () => {
+    try {
+      const res = await fetch("/api/uploads");
+      if (!res.ok) return;
+      const data = (await res.json()) as { assets: IUploadAsset[] };
+      setAssets(data.assets || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchUploads();
+  }, [fetchUploads]);
+
+  return { assets, setAssets, loading, refreshUploads: fetchUploads };
 }
 
 const TerminalSurface: FC<{ terminalWsPath: string; active: boolean }> = ({
@@ -311,39 +396,53 @@ export const WorkspaceShell: FC<WorkspaceShellProps> = ({
   mode = "assistant",
   terminalWsPath = "/api/terminal/ws",
 }) => {
-  const { config, loading } = useApps();
+  const { config } = useApps();
+  const { assets, setAssets } = useUploads();
   const currentSlug =
     window.location.pathname.split("/").filter(Boolean)[0] ?? "";
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+    setUploading(true);
+
+    try {
+      const res = await fetch("/api/uploads", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await res.json().catch(() => ({})) as {
+        error?: string;
+        assets?: IUploadAsset[];
+      };
+      if (!res.ok) {
+        throw new Error(payload.error || "Upload failed.");
+      }
+
+      const nextAssets = [...(payload.assets || []), ...assets].sort(
+        (a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt),
+      );
+      setAssets(nextAssets);
+    } catch {
+      // ignore upload errors in compact shell for now
+    } finally {
+      setUploading(false);
+      event.target.value = "";
+    }
+  }, [assets, setAssets]);
 
   return (
     <div className={`ws-shell${className ? ` ${className}` : ""}`}>
       {header}
 
-      <div className="ws-strip">
-        <span className="ws-strip-label">Apps</span>
-        <div className="ws-strip-scroll">
-          {loading && <span className="ws-strip-loading">Loading...</span>}
-
-          {config?.apps.map((app) => (
-            <a
-              key={app.slug}
-              href={app.url}
-              className={`ws-chip${app.slug === currentSlug ? " ws-chip-active" : ""}`}
-              title={app.url}
-            >
-              <span className="ws-chip-icon">{app.slug.charAt(0).toUpperCase()}</span>
-              <span className="ws-chip-name">{app.slug}</span>
-              <span className={`ws-chip-dot ws-chip-dot-${app.status}`} />
-            </a>
-          ))}
-
-          {config && config.apps.length === 0 && !loading && (
-            <span className="ws-strip-loading">No apps</span>
-          )}
-        </div>
-      </div>
-
       <div className="ws-content">
+
+        {/* Assistant panel */}
         <div
           className={`ws-pane ws-pane-assistant${mode === "assistant" ? " ws-pane-active" : " ws-pane-hidden"}`}
         >
@@ -355,10 +454,71 @@ export const WorkspaceShell: FC<WorkspaceShellProps> = ({
           />
         </div>
 
+        {/* Terminal panel */}
         <div
           className={`ws-pane ws-pane-terminal${mode === "terminal" ? " ws-pane-active" : " ws-pane-hidden"}`}
         >
           <TerminalSurface terminalWsPath={terminalWsPath} active={mode === "terminal"} />
+        </div>
+
+        {/* Apps panel */}
+        <div
+          className={`ws-pane ws-pane-apps${mode === "apps" ? " ws-pane-active" : " ws-pane-hidden"}`}
+        >
+          <div className="ws-apps-panel">
+            <div className="ws-apps-grid">
+              {config?.apps.map((app) => (
+                <a
+                  key={app.slug}
+                  href={app.url}
+                  className={`ws-app-card${app.slug === currentSlug ? " ws-app-card-active" : ""}`}
+                >
+                  <AppTileIcon app={app} />
+                  <div className="ws-app-name">{app.slug}</div>
+                  <div className={`ws-app-dot ws-app-dot-${app.status}`} />
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Files panel */}
+        <div
+          className={`ws-pane ws-pane-files${mode === "files" ? " ws-pane-active" : " ws-pane-hidden"}`}
+        >
+          <div className="ws-files-mini">
+            <input
+              ref={uploadInputRef}
+              className="ws-upload-input"
+              type="file"
+              accept="image/*,.pdf,.txt,.md,.json"
+              multiple
+              onChange={handleUpload}
+            />
+            <div className="ws-files-header">
+              <span>Files</span>
+              <button className="ws-files-upload-btn" onClick={() => uploadInputRef.current?.click()}>
+                {uploading ? "Uploading..." : "Upload"}
+              </button>
+            </div>
+            <div className="ws-files-list">
+              {assets.length === 0 ? (
+                <div className="ws-files-empty">No files yet</div>
+              ) : (
+                assets.map((asset) => (
+                  <div key={asset.name} className="ws-file-mini-item">
+                    {isImage(asset) ? (
+                      <img src={asset.url} alt={asset.name} className="ws-file-mini-thumb" />
+                    ) : (
+                      <div className="ws-file-mini-icon">{asset.name.split(".").pop()}</div>
+                    )}
+                    <span className="ws-file-mini-name">{asset.name}</span>
+                    <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(asset.name)}>Copy</button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -379,112 +539,6 @@ export const WORKSPACE_SHELL_CSS = `
     height: 100dvh;
   }
 
-  .ws-strip {
-    display: flex;
-    align-items: center;
-    padding: 8px 0 8px 12px;
-    background: #161627;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-  .ws-strip-label {
-    color: rgba(255,255,255,0.65);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 0 8px 0 2px;
-    flex-shrink: 0;
-  }
-  .ws-strip-scroll {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    flex: 1;
-    min-width: 0;
-    padding-right: 12px;
-  }
-  .ws-strip-scroll::-webkit-scrollbar { display: none; }
-  .ws-strip-loading {
-    color: #8891a8;
-    font-size: 12px;
-    padding: 6px 10px;
-    white-space: nowrap;
-  }
-
-  .ws-chip {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px;
-    color: rgba(255,255,255,0.7);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    min-height: 36px;
-    transition: background 0.15s, border-color 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-    text-decoration: none;
-  }
-  .ws-chip:active {
-    background: rgba(255,255,255,0.12);
-    transform: scale(0.97);
-  }
-  @media (hover: hover) {
-    .ws-chip:hover {
-      background: rgba(255,255,255,0.1);
-      border-color: rgba(102,126,234,0.3);
-      color: white;
-    }
-  }
-  .ws-chip-active {
-    background: rgba(102,126,234,0.15);
-    border-color: rgba(102,126,234,0.5);
-    color: white;
-  }
-  .ws-chip-icon {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-    color: white;
-    flex-shrink: 0;
-  }
-  .ws-chip-name {
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .ws-chip-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .ws-chip-dot-up {
-    background: #2ed573;
-    box-shadow: 0 0 4px rgba(46,213,115,0.5);
-  }
-  .ws-chip-dot-down,
-  .ws-chip-dot-unknown {
-    background: #57606a;
-  }
-
   .ws-iframe {
     height: 100%;
     width: 100%;
@@ -496,6 +550,164 @@ export const WORKSPACE_SHELL_CSS = `
     position: relative;
     flex: 1;
     min-height: 0;
+  }
+  .ws-files-panel {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    border-radius: 0;
+    background: linear-gradient(180deg, #171f30 0%, #101722 100%);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    z-index: 5;
+  }
+  .ws-files-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .ws-files-panel-body {
+    display: grid;
+    gap: 8px;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 2px;
+    align-content: start;
+  }
+  .ws-upload-heading {
+    min-width: 0;
+  }
+  .ws-upload-label {
+    display: block;
+    color: rgba(255,255,255,0.68);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .ws-upload-copy {
+    margin: 2px 0 0;
+    color: #8f9bb8;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ws-upload-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .ws-upload-input {
+    display: none;
+  }
+  .ws-upload-button,
+  .ws-upload-chip {
+    border: 1px solid rgba(255,255,255,0.12);
+    background: linear-gradient(135deg, rgba(102,126,234,0.18), rgba(118,75,162,0.14));
+    color: #f5f7ff;
+    border-radius: 999px;
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .ws-upload-message {
+    margin-bottom: 8px;
+    color: #bcc8ec;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ws-upload-empty {
+    color: #8891a8;
+    font-size: 11px;
+    padding: 6px 0;
+  }
+  .ws-upload-card {
+    min-width: 0;
+    max-width: none;
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "preview meta actions";
+    column-gap: 12px;
+    row-gap: 6px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.035);
+    border: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
+  }
+  .ws-upload-preview,
+  .ws-upload-file {
+    grid-area: preview;
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+  }
+  .ws-upload-preview {
+    object-fit: cover;
+    display: block;
+  }
+  .ws-upload-file {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #eef2ff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .ws-upload-meta {
+    grid-area: meta;
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    align-content: start;
+  }
+  .ws-upload-meta strong,
+  .ws-upload-meta span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ws-upload-meta strong {
+    font-size: 11px;
+    color: #f5f7ff;
+  }
+  .ws-upload-submeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+  .ws-upload-meta span {
+    font-size: 10px;
+    color: #98a4bf;
+  }
+  .ws-upload-card-actions {
+    grid-area: actions;
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+  .ws-upload-chip {
+    min-height: 26px;
+    padding: 0 9px;
+    font-size: 10px;
+    flex: 0 0 auto;
   }
   .ws-pane {
     position: absolute;
@@ -511,6 +723,180 @@ export const WORKSPACE_SHELL_CSS = `
     visibility: hidden;
     opacity: 0;
     pointer-events: none;
+  }
+
+  /* Apps panel */
+  .ws-pane-apps {
+    background: #0f1115;
+  }
+  .ws-apps-panel {
+    height: 100%;
+    padding: 12px;
+    overflow-y: auto;
+  }
+  .ws-apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+  }
+  .ws-app-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .ws-app-card:active {
+    background: rgba(255,255,255,0.08);
+  }
+  .ws-app-card-active {
+    border-color: rgba(59, 130, 246, 0.5);
+    background: rgba(59, 130, 246, 0.1);
+  }
+  .ws-app-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 8px;
+  }
+  .ws-app-icon-image-wrap {
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+    padding: 8px;
+  }
+  .ws-app-icon-fallback {
+    color: white;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .ws-app-icon-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 8px;
+  }
+  .ws-app-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #e2e8f0;
+    text-align: center;
+    word-break: break-all;
+  }
+  .ws-app-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 6px;
+  }
+  .ws-app-dot-up {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+  }
+  .ws-app-dot-down, .ws-app-dot-unknown {
+    background: #64748b;
+  }
+
+  /* Files panel (mini) */
+  .ws-pane-files {
+    background: #0f1115;
+  }
+  .ws-files-mini {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+  }
+  .ws-files-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 10px;
+  }
+  .ws-files-header span {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .ws-files-upload-btn {
+    border: 1px solid rgba(255,255,255,0.12);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.2));
+    color: #fbbf24;
+    border-radius: 999px;
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .ws-files-list {
+    flex: 1;
+    overflow-y: auto;
+  }
+  .ws-files-empty {
+    color: #64748b;
+    font-size: 12px;
+    text-align: center;
+    padding: 20px;
+  }
+  .ws-file-mini-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    margin-bottom: 6px;
+  }
+  .ws-file-mini-thumb {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: cover;
+  }
+  .ws-file-mini-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #94a3b8;
+  }
+  .ws-file-mini-name {
+    flex: 1;
+    font-size: 11px;
+    color: #e2e8f0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ws-file-mini-copy {
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: #94a3b8;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
   }
 
   .ws-terminal-root {
@@ -600,6 +986,42 @@ export const WORKSPACE_SHELL_CSS = `
   }
 
   @media (max-width: 480px) {
+    .ws-files-panel {
+      padding: 10px;
+    }
+    .ws-files-panel-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .ws-upload-actions {
+      width: 100%;
+    }
+    .ws-upload-button {
+      min-width: 0;
+      width: 100%;
+    }
+    .ws-upload-copy {
+      display: none;
+    }
+    .ws-upload-card {
+      grid-template-columns: 48px minmax(0, 1fr);
+      grid-template-areas:
+        "preview meta"
+        "actions actions";
+      row-gap: 8px;
+      padding: 10px;
+    }
+    .ws-upload-preview,
+    .ws-upload-file {
+      width: 48px;
+      height: 48px;
+    }
+    .ws-upload-card-actions {
+      justify-content: stretch;
+    }
+    .ws-upload-chip {
+      flex: 1;
+    }
     .ws-terminal-key {
       font-size: 10.5px;
       height: 32px;

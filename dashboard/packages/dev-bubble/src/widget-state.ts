@@ -1,4 +1,4 @@
-export type PanelId = "assistant" | "terminal";
+export type PanelId = "assistant" | "terminal" | "apps" | "files";
 
 export interface IBubblePanelState {
   isOpen: boolean;
@@ -56,8 +56,4 @@ export function tapPanelBubble(
     activePanel: panel,
     selectedPanel: panel,
   };
-}
-
-export function getSecondaryPanel(collapsedPanel: PanelId): PanelId {
-  return collapsedPanel === "assistant" ? "terminal" : "assistant";
 }

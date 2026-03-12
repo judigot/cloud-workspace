@@ -146,9 +146,12 @@ Both `judigot.com` and the DevBubble panel show the same **WorkspaceShell** UI:
 - **OpenCode** (below) — AI coding assistant filling the remaining space
 
 On app pages, the DevBubble appears as a draggable floating button (bottom-right, like a Messenger chat head):
+- Minimized: exactly one floating bubble is visible and snapped to the screen edge
 - Tap to expand — opens the WorkspaceShell in a fullscreen overlay
-- Tap Home (in the header) — navigates back to `judigot.com`
-- Tap minimize — collapse back to bubble
+- Expanded: the collapsed bubble stays at the dock edge and the remaining bubbles fan out beside it (`terminal`, `apps`, `files`, then `home`)
+- Tap any panel bubble once — switch the content to that panel
+- Tap the currently active bubble again — minimize, and that same bubble becomes the new floating minimized identity
+- Tap Home — navigates back to `judigot.com`
 
 **How it works:** The `WorkspaceShell` is a single React component shared by both contexts. On `judigot.com` it renders as the full page. On app pages, nginx injects a `<script>` tag via `sub_filter` that loads a self-contained bundle (`/dev-bubble.js`, ~62KB gzipped) which renders the shell inside the bubble's overlay panel.
 

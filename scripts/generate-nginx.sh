@@ -472,6 +472,20 @@ cat >> "$OUTPUT" <<EOF
         proxy_buffering off;
     }
 
+EOF
+
+if [ -n "$DEFAULT_APP" ]; then
+  cat >> "$OUTPUT" <<EOF
+
+    location = / {
+        return 302 /${DEFAULT_APP}/;
+    }
+
+EOF
+fi
+
+cat >> "$OUTPUT" <<EOF
+
     location / {
         proxy_pass http://dashboard_backend;
         proxy_http_version 1.1;
