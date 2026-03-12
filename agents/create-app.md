@@ -845,7 +845,7 @@ cat package.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('
 
 ### Widget injection
 
-Apps are **not** loaded in iframes. Instead, the dashboard navigates the browser directly to the app URL, and nginx injects the DevBubble widget into the app's HTML response using `sub_filter`. This avoids all iframe-related issues (Auth0 `refused to connect`, cookie restrictions, CSP conflicts).
+Apps are **not** loaded in iframes. Instead, the browser navigates directly to the app URL. Public app pages on `judigot.com/<slug>/` stay clean for client sharing, while nginx injects the DevBubble widget only on `dev.judigot.com/<slug>/` using `sub_filter`. This avoids iframe-related issues while keeping development access separated from public presentations.
 
 The `dev.judigot.com` server block still removes `X-Frame-Options` and injects basic auth — this is because the DevBubble widget itself embeds OpenCode in an iframe within the panel overlay.
 

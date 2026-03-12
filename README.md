@@ -98,7 +98,7 @@ This is the core workflow. You're on your phone.
 └─────────────────────────┘
 ```
 
-**Step 2** — Tap the scaffolder chip. The browser navigates to `judigot.com/scaffolder/` — a native page (not an iframe).
+**Step 2** — Tap the scaffolder chip. The browser navigates to `judigot.com/scaffolder/` — a clean public page with no dev bubble injected.
 
 ```
 ┌─────────────────────────┐
@@ -112,7 +112,7 @@ This is the core workflow. You're on your phone.
 └─────────────────────────┘
 ```
 
-The DevBubble widget is automatically injected by nginx (`sub_filter`). No app code changes needed.
+For development pages, use `dev.judigot.com/<slug>/`. The DevBubble widget is injected there by nginx (`sub_filter`) and the whole dev subdomain is auth-protected. Public app pages at `judigot.com/<slug>/` stay clean for client viewing.
 
 **Step 3** — You see something you want to change. Tap the chat bubble. It opens the same WorkspaceShell inside a fullscreen overlay with assistant, terminal, apps, and files panels.
 
