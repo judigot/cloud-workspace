@@ -122,7 +122,7 @@ This is a **single EC2 instance** running Ubuntu. Everything runs on one box:
     └── packages/
         ├── dev-bubble/           # WorkspaceShell + DevBubble widget
         │   └── src/
-        │       ├── WorkspaceShell.tsx    # Shared UI: horizontal app strip + OpenCode iframe
+        │       ├── WorkspaceShell.tsx    # Shared UI: OpenCode, terminal, apps, and files panels
         │       ├── widget.tsx           # Standalone widget: bubble + panel + WorkspaceShell (IIFE bundle)
         │       ├── DevBubble.tsx        # React component (legacy, kept for reference)
         │       ├── DevBubble.module.css # React component styles
@@ -137,7 +137,7 @@ This is a **single EC2 instance** running Ubuntu. Everything runs on one box:
 Browser → Nginx (:443 SSL)
   │
   ├─ judigot.com
-  │   ├─ /                    → Dashboard Vite (:3200)  ← WorkspaceShell (app strip + OpenCode)
+  │   ├─ /                    → Dashboard Vite (:3200)  ← WorkspaceShell (OpenCode + apps/files panels)
   │   ├─ /api/*               → Dashboard Hono API (:3100)
   │   ├─ /dev-bubble.js       → Static widget bundle (/var/www/static/)
   │   ├─ /<slug>/             → App Vite frontend + sub_filter injects DevBubble
@@ -159,7 +159,7 @@ The widget bundle at `/dev-bubble.js` is a self-contained React IIFE built with 
 
 - **Bubble is always visible** — it never disappears or unmounts
 - **Draggable with edge-snapping** — after drag, bubble animates to the nearest screen edge
-- **On tap**: bubble docks to the top of whichever side it is on (left or right), a home button (same size) slides out on the opposite side, and the chat panel slides down below the bubble row. The panel contains WorkspaceShell (app strip + OpenCode iframe)
+- **On tap**: bubble docks to the top of whichever side it is on (left or right), a home button (same size) slides out on the opposite side, and the panel opens below the bubble row. The panel contains WorkspaceShell with assistant, terminal, apps, and files views.
 - **On tap again (minimize)**: everything moves simultaneously — bubble returns to its saved edge position, home button follows and fades, panel closes. No sequential delays
 - **No header bar inside the panel** — the bubble row (bubble + home button) IS the header, maximizing vertical space
 - **Pop-in animation** on page load (scale 0 → 1)
@@ -856,7 +856,7 @@ The dashboard is a **pnpm monorepo** inside `~/workspace/dashboard/`:
 ### Packages
 
 - **`apps/workspace`** — The main dashboard app
-  - `src/App.tsx` — Renders `WorkspaceShell` as a full-page app (app strip + OpenCode)
+  - `src/App.tsx` — Renders `WorkspaceShell` as a full-page app shell
   - `src/server/app.ts` — Hono API server
     - `GET /api/apps` — reads `~/workspace/.env`, parses `APPS`, TCP-checks each port, returns JSON
     - `GET /api/health` — returns `{ status: "ok" }`
@@ -864,9 +864,9 @@ The dashboard is a **pnpm monorepo** inside `~/workspace/dashboard/`:
 
 - **`packages/dev-bubble`** — WorkspaceShell + DevBubble widget
   - `src/WorkspaceShell.tsx` — **Shared UI component** used by both dashboard and widget:
-    - App strip with sticky-left `Apps` label and independently scrollable chips (icon, name, status dot)
-    - OpenCode iframe filling remaining vertical space
-    - Fetches `/api/apps` for the app list; current app highlighted
+    - Full-page OpenCode shell with direct `assistant`, `terminal`, `apps`, and `files` panel views
+    - `apps` panel fetches `/api/apps` and renders icon/title/slug/status metadata with search + status filters
+    - `files` panel fetches `/api/uploads` and renders uploaded assets with search + type filters
     - Accepts optional `header` slot (used by dashboard; the widget does NOT pass a header — the bubble row replaces it)
     - Exports `WORKSPACE_SHELL_CSS` for style injection
   - `src/widget.tsx` — **Standalone widget bundle** (compiled to IIFE with esbuild):
@@ -1047,11 +1047,13 @@ The widget source is at `~/workspace/dashboard/packages/dev-bubble/src/widget.ts
 
 ### Current behavior (Messenger-style)
 
-- **Bubble**: always visible, always mounted. Draggable when closed, edge-snaps on release. Pops in on page load (`@keyframes db-btn-enter`).
-- **Open (tap)**: bubble docks to the top of its current side (`left` or `right`). Home button (same size, dark gradient) slides out on the opposite side after a short delay (`HOME_REVEAL_DELAY`). Panel slides down from below the bubble row. Panel has no header bar — the bubble row IS the header.
-- **Close (tap bubble again)**: everything moves simultaneously — bubble returns to saved position, home button follows and fades, panel closes. No sequential delays.
-- **Spacing**: uniform `BUBBLE_MARGIN` (12px) for all gaps — top edge, right edge, home-to-bubble, bubble-to-panel.
-- **Panel content**: `WorkspaceShell` (app strip + OpenCode iframe), no `header` prop passed.
+- **Bubble**: exactly one floating bubble is visible when closed. It is always mounted, draggable when closed, and edge-snaps on release. Pops in on page load (`@keyframes db-btn-enter`).
+- **Open (tap)**: the floating bubble docks to the top of its current side (`left` or `right`). The panel opens below the bubble row. The remaining panel bubbles fan out beside it, followed by the home bubble.
+- **Panel set**: `assistant`, `terminal`, `apps`, and `files` are all explicit bubble identities. `apps` and `files` have their own full overlay panels; they are not duplicated in `WorkspaceShell` headers.
+- **Switch (tap another bubble once)**: content changes to that panel without minimizing.
+- **Close (tap the currently active bubble again)**: everything moves simultaneously — panel closes, side bubbles retract, and the tapped bubble becomes the new floating minimized identity.
+- **Spacing**: uniform `BUBBLE_MARGIN` (12px) for all gaps — top edge, side gap, bubble-to-bubble, and bubble-to-panel.
+- **Panel content**: `WorkspaceShell` with direct panel views (`assistant`, `terminal`, `apps`, `files`), no redundant app strip/header inside the widget.
 
 ### Invariant-first interaction workflow (required for bubble behavior changes)
 
@@ -1068,8 +1070,9 @@ Recommended invariants for DevBubble panel selection:
 - **I2 Selection first**: first tap on a bubble selects/activates its panel.
 - **I3 Minimize on second tap**: minimize only when tapping the currently selected+active bubble again.
 - **I4 Collapse ownership**: bubble used to minimize becomes the collapsed floating bubble identity.
-- **I5 Stable positions**: Home/Assistant/Terminal positions remain deterministic (mirrored for left/right docking).
-- **I6 Active highlight**: active bubble is visibly highlighted (not always chat by default).
+- **I5 Stable positions**: when closed, the floating bubble stays edge-snapped; when open, the floating identity stays at the dock edge and only the remaining bubbles fan out beside it.
+- **I6 No duplicate identities**: the collapsed floating bubble must not also appear in the expanded side-bubble row.
+- **I7 Active highlight**: active bubble is visibly highlighted.
 
 Implementation guidance:
 
@@ -1124,7 +1127,8 @@ Required coverage goals for bubble logic:
 - First tap on other bubble switches panel (no minimize)
 - Second tap on selected+active bubble minimizes
 - Minimize sets `collapsedPanel` to the triggering panel
-- `secondaryPanel` is always opposite of `collapsedPanel`
+- Closed state preserves `activePanel === selectedPanel === collapsedPanel`
+- Expanded row excludes the collapsed panel identity
 
 ### Common modifications
 
