@@ -14,7 +14,7 @@ const getBaseDomain = (hostname: string): string => {
 const OPENCODE_URL =
   window.location.hostname === "localhost"
     ? "http://localhost:4097"
-    : `https://opencode.${getBaseDomain(window.location.hostname)}/`;
+    : `https://dev.${getBaseDomain(window.location.hostname)}/`;
 
 function App() {
   return (

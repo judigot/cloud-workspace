@@ -145,7 +145,7 @@ Browser → Nginx (:443 SSL)
   │   ├─ /<slug>/api/         → App backend API (fullstack only)
   │   └─ /<slug>/ws           → App websocket (fullstack + ws option)
   │
-  └─ opencode.judigot.com     → OpenCode (:4097, auth injected by nginx)
+  └─ dev.judigot.com     → OpenCode (:4097, auth injected by nginx)
 ```
 
 ### DevBubble Widget Injection
@@ -301,7 +301,7 @@ sudo journalctl -u nginx -n 20   # Recent logs
 ```sh
 # All endpoints
 curl -s -o /dev/null -w "%{http_code}" https://judigot.com/                 # 200 (Dashboard)
-curl -s -o /dev/null -w "%{http_code}" https://opencode.judigot.com/        # 200 (OpenCode, auth injected by nginx)
+curl -s -o /dev/null -w "%{http_code}" https://dev.judigot.com/        # 200 (OpenCode, auth injected by nginx)
 curl -s http://localhost:3100/api/apps | python3 -m json.tool               # JSON with app list
 
     # DevBubble widget
@@ -845,9 +845,9 @@ cat package.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('
 
 ### Widget injection
 
-Apps are **not** loaded in iframes. Instead, the dashboard navigates the browser directly to the app URL, and nginx injects the DevBubble widget into the app's HTML response using `sub_filter`. This avoids all iframe-related issues (Auth0 `refused to connect`, cookie restrictions, CSP conflicts).
+Apps are **not** loaded in iframes. Instead, the browser navigates directly to the app URL. Public app pages on `judigot.com/<slug>/` stay clean for client sharing, while nginx injects the DevBubble widget only on `dev.judigot.com/<slug>/` using `sub_filter`. This avoids iframe-related issues while keeping development access separated from public presentations.
 
-The `opencode.judigot.com` server block still removes `X-Frame-Options` and injects basic auth — this is because the DevBubble widget itself embeds OpenCode in an iframe within the panel overlay.
+The `dev.judigot.com` server block still removes `X-Frame-Options` and injects basic auth — this is because the DevBubble widget itself embeds OpenCode in an iframe within the panel overlay.
 
 ## Dashboard Architecture
 
@@ -995,7 +995,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/api/apps  # Dashboa
 
 # 5. Can we reach through nginx?
 curl -s -o /dev/null -w "%{http_code}" https://judigot.com/
-curl -s -o /dev/null -w "%{http_code}" https://opencode.judigot.com/
+curl -s -o /dev/null -w "%{http_code}" https://dev.judigot.com/
 
 # 6. Check .env
 cat ~/workspace/.env

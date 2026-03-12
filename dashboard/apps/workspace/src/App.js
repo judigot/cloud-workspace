@@ -12,7 +12,7 @@ var getBaseDomain = function (hostname) {
 };
 var OPENCODE_URL = window.location.hostname === "localhost"
     ? "http://localhost:4097"
-    : "https://opencode.".concat(getBaseDomain(window.location.hostname), "/");
+    : "https://dev.".concat(getBaseDomain(window.location.hostname), "/");
 function App() {
     return (<shell_1.WorkspaceShell opencodeUrl={OPENCODE_URL} className="ws-shell-fullpage"/>);
 }

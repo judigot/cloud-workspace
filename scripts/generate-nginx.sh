@@ -6,7 +6,7 @@ ROOT_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
 
 DOMAIN=${DOMAIN:-"judigot.com"}
 WWW_DOMAIN=${WWW_DOMAIN:-"www.${DOMAIN}"}
-OPENCODE_SUBDOMAIN=${OPENCODE_SUBDOMAIN:-"opencode.${DOMAIN}"}
+OPENCODE_SUBDOMAIN=${OPENCODE_SUBDOMAIN:-"dev.${DOMAIN}"}
 
 SSL_CERT=${SSL_CERT:-"/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"}
 SSL_KEY=${SSL_KEY:-"/etc/letsencrypt/live/${DOMAIN}/privkey.pem"}
@@ -180,6 +180,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
     gzip on;
     gzip_vary on;
@@ -205,8 +206,8 @@ server {
     }
 EOF
 
-# sub_filter snippet injected into each app's main location block
-WIDGET_SCRIPT_TAG="<script src=\"https://${DOMAIN}/dev-bubble.js\" data-opencode-url=\"https://${OPENCODE_SUBDOMAIN}\" data-dashboard-url=\"https://${DOMAIN}\"></script>"
+# sub_filter snippet injected into dev app pages only
+DEV_WIDGET_SCRIPT_TAG="<script src=\"https://${DOMAIN}/dev-bubble.js\" data-opencode-url=\"https://${OPENCODE_SUBDOMAIN}\" data-dashboard-url=\"https://${OPENCODE_SUBDOMAIN}\"></script>"
 
 # Generate location blocks for each app
 for app in $APPS; do
@@ -245,12 +246,9 @@ for app in $APPS; do
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-XSS-Protection "1; mode=block" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
         proxy_buffering off;
 
-        # Inject DevBubble widget into HTML responses
-        proxy_set_header Accept-Encoding "";
-        sub_filter '</body>' '${WIDGET_SCRIPT_TAG}</body>';
-        sub_filter_once on;
     }
 EOF
       ;;
@@ -323,10 +321,6 @@ EOF
         proxy_set_header X-Forwarded-Host \$host;
         proxy_buffering off;
 
-        # Inject DevBubble widget into HTML responses
-        proxy_set_header Accept-Encoding "";
-        sub_filter '</body>' '${WIDGET_SCRIPT_TAG}</body>';
-        sub_filter_once on;
     }
 EOF
       ;;
@@ -361,10 +355,6 @@ EOF
         proxy_set_header X-Forwarded-Host \$host;
         proxy_buffering off;
 
-        # Inject DevBubble widget into HTML responses
-        proxy_set_header Accept-Encoding "";
-        sub_filter '</body>' '${WIDGET_SCRIPT_TAG}</body>';
-        sub_filter_once on;
     }
 EOF
       ;;
@@ -399,10 +389,6 @@ EOF
         proxy_set_header X-Forwarded-Host \$host;
         proxy_buffering off;
 
-        # Inject DevBubble widget into HTML responses
-        proxy_set_header Accept-Encoding "";
-        sub_filter '</body>' '${WIDGET_SCRIPT_TAG}</body>';
-        sub_filter_once on;
     }
 EOF
       ;;
@@ -422,10 +408,6 @@ EOF
         proxy_set_header X-Forwarded-Host \$host;
         proxy_buffering off;
 
-        # Inject DevBubble widget into HTML responses
-        proxy_set_header Accept-Encoding "";
-        sub_filter '</body>' '${WIDGET_SCRIPT_TAG}</body>';
-        sub_filter_once on;
     }
 EOF
       ;;
@@ -446,10 +428,6 @@ EOF
         proxy_set_header X-Forwarded-Host \$host;
         proxy_buffering off;
 
-        # Inject DevBubble widget into HTML responses
-        proxy_set_header Accept-Encoding "";
-        sub_filter '</body>' '${WIDGET_SCRIPT_TAG}</body>';
-        sub_filter_once on;
     }
 EOF
       ;;
@@ -518,11 +496,249 @@ server {
     ssl_certificate ${SSL_CERT};
     ssl_certificate_key ${SSL_KEY};
 
+    auth_basic "Secure Area";
+    auth_basic_user_file ${OPENCODE_HTPASSWD_FILE};
+
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "frame-ancestors https://${DOMAIN}" always;
+    add_header Content-Security-Policy "frame-ancestors https://${DOMAIN} https://${OPENCODE_SUBDOMAIN}" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
 EOF
+
+for app in $APPS; do
+  parse_app "$app"
+  upstream_name=$(slug_to_upstream_name "$APP_SLUG")
+
+  case "$APP_TYPE" in
+    frontend)
+      cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/__vite_hmr {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/__vite_hmr;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+
+    location /${APP_SLUG}/ {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-Host \$host;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+        proxy_buffering off;
+
+        proxy_set_header Accept-Encoding "";
+        sub_filter '</body>' '${DEV_WIDGET_SCRIPT_TAG}</body>';
+        sub_filter_once on;
+    }
+EOF
+      ;;
+    fullstack)
+      cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/__vite_hmr {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/__vite_hmr;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+EOF
+      if has_option "${APP_OPTIONS:-}" "ws"; then
+        cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/ws {
+        proxy_pass http://app_${upstream_name}_backend/ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 86400s;
+        proxy_buffering off;
+    }
+EOF
+      fi
+      cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/api/ {
+        proxy_pass http://app_${upstream_name}_backend/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_buffering on;
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+    }
+
+    location /${APP_SLUG}/ {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_buffering off;
+
+        proxy_set_header Accept-Encoding "";
+        sub_filter '</body>' '${DEV_WIDGET_SCRIPT_TAG}</body>';
+        sub_filter_once on;
+    }
+EOF
+      ;;
+    nextjs)
+      cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/_next/webpack-hmr {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/_next/webpack-hmr;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+
+    location /${APP_SLUG}/ {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_buffering off;
+
+        proxy_set_header Accept-Encoding "";
+        sub_filter '</body>' '${DEV_WIDGET_SCRIPT_TAG}</body>';
+        sub_filter_once on;
+    }
+EOF
+      ;;
+    nuxt)
+      cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/_nuxt/ {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/_nuxt/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+
+    location /${APP_SLUG}/ {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_buffering off;
+
+        proxy_set_header Accept-Encoding "";
+        sub_filter '</body>' '${DEV_WIDGET_SCRIPT_TAG}</body>';
+        sub_filter_once on;
+    }
+EOF
+      ;;
+    laravel|backend)
+      cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/ {
+        proxy_pass http://app_${upstream_name}_backend/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_buffering off;
+
+        proxy_set_header Accept-Encoding "";
+        sub_filter '</body>' '${DEV_WIDGET_SCRIPT_TAG}</body>';
+        sub_filter_once on;
+    }
+EOF
+      ;;
+    static)
+      cat >> "$OUTPUT" <<EOF
+
+    location /${APP_SLUG}/ {
+        proxy_pass http://app_${upstream_name}_frontend/${APP_SLUG}/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_buffering off;
+
+        proxy_set_header Accept-Encoding "";
+        sub_filter '</body>' '${DEV_WIDGET_SCRIPT_TAG}</body>';
+        sub_filter_once on;
+    }
+EOF
+      ;;
+  esac
+done
 
 cat >> "$OUTPUT" <<EOF
 
@@ -539,6 +755,10 @@ cat >> "$OUTPUT" <<EOF
         proxy_read_timeout 86400s;
         proxy_buffering off;
         proxy_hide_header X-Frame-Options;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "frame-ancestors https://${DOMAIN} https://${OPENCODE_SUBDOMAIN}" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     }
 }
 

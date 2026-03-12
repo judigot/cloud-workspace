@@ -49,7 +49,7 @@ var WORKSPACE_UPLOAD_ROOT = process.env.WORKSPACE_UPLOAD_ROOT || "/home/ubuntu/w
 function parseEnv() {
     var defaults = {
         domain: "judigot.com",
-        opencodeDomain: "opencode.judigot.com",
+        opencodeDomain: "dev.judigot.com",
         apps: [],
     };
     try {
@@ -75,7 +75,7 @@ function parseEnv() {
             vars[key] = value;
         }
         var domain = vars["DOMAIN"] || defaults.domain;
-        var opencodeDomain = vars["OPENCODE_SUBDOMAIN"] || "opencode.".concat(domain);
+        var opencodeDomain = vars["OPENCODE_SUBDOMAIN"] || "dev.".concat(domain);
         var appsEnv = vars["APPS"] || "";
         var viteApps = vars["VITE_APPS"] || "";
         var apps = void 0;

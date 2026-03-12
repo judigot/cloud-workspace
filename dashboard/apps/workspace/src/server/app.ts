@@ -51,7 +51,7 @@ interface IRawApp {
 function parseEnv(): { domain: string; opencodeDomain: string; apps: IRawApp[] } {
   const defaults = {
     domain: "judigot.com",
-    opencodeDomain: "opencode.judigot.com",
+    opencodeDomain: "dev.judigot.com",
     apps: [] as IRawApp[],
   };
 
@@ -82,7 +82,7 @@ function parseEnv(): { domain: string; opencodeDomain: string; apps: IRawApp[] }
 
     const domain = vars["DOMAIN"] || defaults.domain;
     const opencodeDomain =
-      vars["OPENCODE_SUBDOMAIN"] || `opencode.${domain}`;
+      vars["OPENCODE_SUBDOMAIN"] || `dev.${domain}`;
 
     const appsEnv = vars["APPS"] || "";
     const viteApps = vars["VITE_APPS"] || "";

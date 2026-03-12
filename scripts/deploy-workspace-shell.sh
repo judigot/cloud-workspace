@@ -17,7 +17,7 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 DOMAIN=${DOMAIN:-"judigot.com"}
-OPENCODE_SUBDOMAIN=${OPENCODE_SUBDOMAIN:-"opencode.${DOMAIN}"}
+OPENCODE_SUBDOMAIN=${OPENCODE_SUBDOMAIN:-"dev.${DOMAIN}"}
 VITE_APPS=${VITE_APPS:-"playground:5175 new-app:5176"}
 
 # Build JSON array from VITE_APPS (slug:port pairs)
