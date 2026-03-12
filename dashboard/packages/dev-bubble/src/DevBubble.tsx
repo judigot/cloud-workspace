@@ -40,7 +40,7 @@ const BUBBLE_MARGIN = 24;
 const DRAG_THRESHOLD = 10;
 
 export function DevBubble({
-  url = "https://opencode.judigot.com",
+  url = "https://dev.judigot.com",
   appUrl = "",
   onNavigate,
   apps = [],

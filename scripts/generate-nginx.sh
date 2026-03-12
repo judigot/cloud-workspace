@@ -6,7 +6,7 @@ ROOT_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
 
 DOMAIN=${DOMAIN:-"judigot.com"}
 WWW_DOMAIN=${WWW_DOMAIN:-"www.${DOMAIN}"}
-OPENCODE_SUBDOMAIN=${OPENCODE_SUBDOMAIN:-"opencode.${DOMAIN}"}
+OPENCODE_SUBDOMAIN=${OPENCODE_SUBDOMAIN:-"dev.${DOMAIN}"}
 
 SSL_CERT=${SSL_CERT:-"/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"}
 SSL_KEY=${SSL_KEY:-"/etc/letsencrypt/live/${DOMAIN}/privkey.pem"}

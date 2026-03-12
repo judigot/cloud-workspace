@@ -14,7 +14,7 @@
  *
  * Config via script tag data attributes:
  *   <script src="/dev-bubble.js"
- *     data-opencode-url="https://opencode.judigot.com"
+ *     data-opencode-url="https://dev.judigot.com"
  *     data-dashboard-url="https://judigot.com">
  *   </script>
  */
@@ -59,7 +59,7 @@ const HOME_SLIDE_DURATION = 250;
 const scriptTag = document.currentScript as HTMLScriptElement | null;
 const OPENCODE_URL =
   scriptTag?.getAttribute("data-opencode-url") ??
-  "https://opencode.judigot.com";
+  "https://dev.judigot.com";
 const DASHBOARD_URL =
   scriptTag?.getAttribute("data-dashboard-url") ?? "/";
 

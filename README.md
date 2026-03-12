@@ -49,13 +49,13 @@ Then it automatically:
 | URL | What you see |
 |-----|-------------|
 | `https://judigot.com` | Workspace — OpenCode shell with apps/files panels |
-| `https://opencode.judigot.com` | OpenCode (standalone, also embedded in the workspace shell) |
+| `https://dev.judigot.com` | OpenCode (standalone, also embedded in the workspace shell) |
 
 ---
 
 ### Journey 2: Create an App via OpenCode
 
-Open OpenCode at `opencode.judigot.com` (or from the chat bubble inside any app). Ask it to create an app.
+Open OpenCode at `dev.judigot.com` (or from the chat bubble inside any app). Ask it to create an app.
 
 > "Create a new React app called my-app"
 
@@ -201,7 +201,7 @@ judigot.com
         ├─ /<slug>/ws     → App websocket (fullstack+ws)
         └─ /<slug>/       → App backend + sub_filter (laravel)
 
-opencode.judigot.com → OpenCode (:4097, auth injected by nginx)
+dev.judigot.com → OpenCode (:4097, auth injected by nginx)
 ```
 
 **Unified WorkspaceShell:**
