@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 
 const WORKSPACE_ENV =
   process.env.WORKSPACE_ENV_PATH || "/home/ubuntu/workspace/.env";
@@ -296,8 +296,9 @@ function extensionFor(file: File) {
   }
 }
 
-function makeSavedName(file: File) {
-  return `${Date.now()}-${sanitizeBaseName(file.name)}-${randomUUID().slice(0, 6)}${extensionFor(file)}`;
+function makeSavedName(file: File, content: Buffer) {
+  const hash = createHash("sha256").update(content).digest("hex").slice(0, 10);
+  return `${sanitizeBaseName(file.name)}-${hash}${extensionFor(file)}`;
 }
 
 export const app = new Hono();
@@ -411,9 +412,10 @@ app.post("/api/uploads", async (c) => {
       return c.json({ error: `${file.name} is larger than 20 MB.` }, 400);
     }
 
-    const savedName = makeSavedName(file);
+    const content = Buffer.from(await file.arrayBuffer());
+    const savedName = makeSavedName(file, content);
     const serverPath = path.join(WORKSPACE_UPLOAD_ROOT, savedName);
-    await writeFile(serverPath, Buffer.from(await file.arrayBuffer()));
+    await writeFile(serverPath, content);
     const info = await stat(serverPath);
     const asset: IUploadAsset = {
       name: savedName,

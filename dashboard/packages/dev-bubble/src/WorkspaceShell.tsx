@@ -389,6 +389,77 @@ const TerminalSurface: FC<{ terminalWsPath: string; active: boolean }> = ({
   );
 };
 
+const AssistantPanel: FC<{ opencodeUrl: string }> = ({ opencodeUrl }) => (
+  <iframe
+    className="ws-iframe"
+    src={opencodeUrl}
+    title="OpenCode"
+    allow="clipboard-read; clipboard-write; microphone"
+  />
+);
+
+const AppsPanel: FC<{ apps: IApp[]; currentSlug: string }> = ({ apps, currentSlug }) => (
+  <div className="ws-apps-panel">
+    <div className="ws-apps-grid">
+      {apps.map((app) => (
+        <a
+          key={app.slug}
+          href={app.url}
+          className={`ws-app-card${app.slug === currentSlug ? " ws-app-card-active" : ""}`}
+        >
+          <AppTileIcon app={app} />
+          <div className="ws-app-name">{app.slug}</div>
+          <div className={`ws-app-dot ws-app-dot-${app.status}`} />
+        </a>
+      ))}
+    </div>
+  </div>
+);
+
+const FilesPanel: FC<{
+  assets: IUploadAsset[];
+  uploading: boolean;
+  uploadInputRef: React.RefObject<HTMLInputElement | null>;
+  onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+}> = ({ assets, uploading, uploadInputRef, onUpload }) => (
+  <div className="ws-files-mini">
+    <input
+      ref={uploadInputRef}
+      className="ws-upload-input"
+      type="file"
+      accept="image/*,.pdf,.txt,.md,.json"
+      multiple
+      onChange={onUpload}
+    />
+    <div className="ws-files-header">
+      <span>Files</span>
+      <button className="ws-files-upload-btn" onClick={() => uploadInputRef.current?.click()}>
+        {uploading ? "Uploading..." : "Upload"}
+      </button>
+    </div>
+    <div className="ws-files-list">
+      {assets.length === 0 ? (
+        <div className="ws-files-empty">No files yet</div>
+      ) : (
+        assets.map((asset) => (
+          <div key={asset.name} className="ws-file-mini-item">
+            {isImage(asset) ? (
+              <img src={asset.url} alt={asset.name} className="ws-file-mini-thumb" />
+            ) : (
+              <div className="ws-file-mini-icon">{asset.name.split(".").pop()}</div>
+            )}
+            <span className="ws-file-mini-name">{asset.name}</span>
+            <div className="ws-file-mini-actions">
+              <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(asset.name)}>Name</button>
+              <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(toAbsoluteUrl(asset.url))}>URL</button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+);
+
 export const WorkspaceShell: FC<WorkspaceShellProps> = ({
   opencodeUrl,
   header,
@@ -446,12 +517,7 @@ export const WorkspaceShell: FC<WorkspaceShellProps> = ({
         <div
           className={`ws-pane ws-pane-assistant${mode === "assistant" ? " ws-pane-active" : " ws-pane-hidden"}`}
         >
-          <iframe
-            className="ws-iframe"
-            src={opencodeUrl}
-            title="OpenCode"
-            allow="clipboard-read; clipboard-write; microphone"
-          />
+          <AssistantPanel opencodeUrl={opencodeUrl} />
         </div>
 
         {/* Terminal panel */}
@@ -465,60 +531,19 @@ export const WorkspaceShell: FC<WorkspaceShellProps> = ({
         <div
           className={`ws-pane ws-pane-apps${mode === "apps" ? " ws-pane-active" : " ws-pane-hidden"}`}
         >
-          <div className="ws-apps-panel">
-            <div className="ws-apps-grid">
-              {config?.apps.map((app) => (
-                <a
-                  key={app.slug}
-                  href={app.url}
-                  className={`ws-app-card${app.slug === currentSlug ? " ws-app-card-active" : ""}`}
-                >
-                  <AppTileIcon app={app} />
-                  <div className="ws-app-name">{app.slug}</div>
-                  <div className={`ws-app-dot ws-app-dot-${app.status}`} />
-                </a>
-              ))}
-            </div>
-          </div>
+          <AppsPanel apps={config?.apps ?? []} currentSlug={currentSlug} />
         </div>
 
         {/* Files panel */}
         <div
           className={`ws-pane ws-pane-files${mode === "files" ? " ws-pane-active" : " ws-pane-hidden"}`}
         >
-          <div className="ws-files-mini">
-            <input
-              ref={uploadInputRef}
-              className="ws-upload-input"
-              type="file"
-              accept="image/*,.pdf,.txt,.md,.json"
-              multiple
-              onChange={handleUpload}
-            />
-            <div className="ws-files-header">
-              <span>Files</span>
-              <button className="ws-files-upload-btn" onClick={() => uploadInputRef.current?.click()}>
-                {uploading ? "Uploading..." : "Upload"}
-              </button>
-            </div>
-            <div className="ws-files-list">
-              {assets.length === 0 ? (
-                <div className="ws-files-empty">No files yet</div>
-              ) : (
-                assets.map((asset) => (
-                  <div key={asset.name} className="ws-file-mini-item">
-                    {isImage(asset) ? (
-                      <img src={asset.url} alt={asset.name} className="ws-file-mini-thumb" />
-                    ) : (
-                      <div className="ws-file-mini-icon">{asset.name.split(".").pop()}</div>
-                    )}
-                    <span className="ws-file-mini-name">{asset.name}</span>
-                    <button className="ws-file-mini-copy" onClick={() => navigator.clipboard.writeText(asset.name)}>Copy</button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <FilesPanel
+            assets={assets}
+            uploading={uploading}
+            uploadInputRef={uploadInputRef}
+            onUpload={handleUpload}
+          />
         </div>
       </div>
     </div>
@@ -887,6 +912,11 @@ export const WORKSPACE_SHELL_CSS = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .ws-file-mini-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
   }
   .ws-file-mini-copy {
     border: 1px solid rgba(255,255,255,0.1);
