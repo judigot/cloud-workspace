@@ -122,7 +122,7 @@ This is a **single EC2 instance** running Ubuntu. Everything runs on one box:
     └── packages/
         ├── dev-bubble/           # WorkspaceShell + DevBubble widget
         │   └── src/
-        │       ├── WorkspaceShell.tsx    # Shared UI: horizontal app strip + OpenCode iframe
+        │       ├── WorkspaceShell.tsx    # Shared UI: OpenCode, terminal, apps, and files panels
         │       ├── widget.tsx           # Standalone widget: bubble + panel + WorkspaceShell (IIFE bundle)
         │       ├── DevBubble.tsx        # React component (legacy, kept for reference)
         │       ├── DevBubble.module.css # React component styles
@@ -137,7 +137,7 @@ This is a **single EC2 instance** running Ubuntu. Everything runs on one box:
 Browser → Nginx (:443 SSL)
   │
   ├─ judigot.com
-  │   ├─ /                    → Dashboard Vite (:3200)  ← WorkspaceShell (app strip + OpenCode)
+  │   ├─ /                    → Dashboard Vite (:3200)  ← WorkspaceShell (OpenCode + apps/files panels)
   │   ├─ /api/*               → Dashboard Hono API (:3100)
   │   ├─ /dev-bubble.js       → Static widget bundle (/var/www/static/)
   │   ├─ /<slug>/             → App Vite frontend + sub_filter injects DevBubble
@@ -159,7 +159,7 @@ The widget bundle at `/dev-bubble.js` is a self-contained React IIFE built with 
 
 - **Bubble is always visible** — it never disappears or unmounts
 - **Draggable with edge-snapping** — after drag, bubble animates to the nearest screen edge
-- **On tap**: bubble docks to the top of whichever side it is on (left or right), a home button (same size) slides out on the opposite side, and the chat panel slides down below the bubble row. The panel contains WorkspaceShell (app strip + OpenCode iframe)
+- **On tap**: bubble docks to the top of whichever side it is on (left or right), a home button (same size) slides out on the opposite side, and the panel opens below the bubble row. The panel contains WorkspaceShell with assistant, terminal, apps, and files views.
 - **On tap again (minimize)**: everything moves simultaneously — bubble returns to its saved edge position, home button follows and fades, panel closes. No sequential delays
 - **No header bar inside the panel** — the bubble row (bubble + home button) IS the header, maximizing vertical space
 - **Pop-in animation** on page load (scale 0 → 1)
@@ -856,7 +856,7 @@ The dashboard is a **pnpm monorepo** inside `~/workspace/dashboard/`:
 ### Packages
 
 - **`apps/workspace`** — The main dashboard app
-  - `src/App.tsx` — Renders `WorkspaceShell` as a full-page app (app strip + OpenCode)
+  - `src/App.tsx` — Renders `WorkspaceShell` as a full-page app shell
   - `src/server/app.ts` — Hono API server
     - `GET /api/apps` — reads `~/workspace/.env`, parses `APPS`, TCP-checks each port, returns JSON
     - `GET /api/health` — returns `{ status: "ok" }`
@@ -864,9 +864,9 @@ The dashboard is a **pnpm monorepo** inside `~/workspace/dashboard/`:
 
 - **`packages/dev-bubble`** — WorkspaceShell + DevBubble widget
   - `src/WorkspaceShell.tsx` — **Shared UI component** used by both dashboard and widget:
-    - App strip with sticky-left `Apps` label and independently scrollable chips (icon, name, status dot)
-    - OpenCode iframe filling remaining vertical space
-    - Fetches `/api/apps` for the app list; current app highlighted
+    - Full-page OpenCode shell with direct `assistant`, `terminal`, `apps`, and `files` panel views
+    - `apps` panel fetches `/api/apps` and renders icon/title/slug/status metadata with search + status filters
+    - `files` panel fetches `/api/uploads` and renders uploaded assets with search + type filters
     - Accepts optional `header` slot (used by dashboard; the widget does NOT pass a header — the bubble row replaces it)
     - Exports `WORKSPACE_SHELL_CSS` for style injection
   - `src/widget.tsx` — **Standalone widget bundle** (compiled to IIFE with esbuild):

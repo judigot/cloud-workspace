@@ -48,7 +48,7 @@ Then it automatically:
 
 | URL | What you see |
 |-----|-------------|
-| `https://judigot.com` | Workspace — app strip + OpenCode |
+| `https://judigot.com` | Workspace — OpenCode shell with apps/files panels |
 | `https://opencode.judigot.com` | OpenCode (standalone, also embedded in the workspace shell) |
 
 ---
@@ -67,8 +67,8 @@ OpenCode (via the `create-app` agent) will:
 
 Result:
 - `https://judigot.com/my-app/` is live
-- App strip at `judigot.com` shows it with a green status dot
-- Tap the chip to navigate to it; the DevBubble on the app page has the same shell
+- Apps panel at `judigot.com` shows it with icon/title/status metadata
+- Open the Apps bubble to navigate to it; the DevBubble on the app page has the same shell
 
 Full-stack apps work too:
 
@@ -85,11 +85,11 @@ Full-stack apps work too:
 
 This is the core workflow. You're on your phone.
 
-**Step 1** — Open `judigot.com`. You see the **WorkspaceShell**: a horizontal app strip at the top (scrollable chips with status dots) and OpenCode filling the rest of the screen.
+**Step 1** — Open `judigot.com`. You see the **WorkspaceShell**: OpenCode in the main view, with dedicated panels for apps, files, and terminal in the same shell.
 
 ```
 ┌─────────────────────────┐
-│ [scaffolder●] [my-app●] │  ← app strip
+│     Workspace Shell     │
 ├─────────────────────────┤
 │                         │
 │        OpenCode         │
@@ -114,7 +114,7 @@ This is the core workflow. You're on your phone.
 
 The DevBubble widget is automatically injected by nginx (`sub_filter`). No app code changes needed.
 
-**Step 3** — You see something you want to change. Tap the chat bubble. It opens the same WorkspaceShell (app strip + OpenCode) inside a fullscreen overlay.
+**Step 3** — You see something you want to change. Tap the chat bubble. It opens the same WorkspaceShell inside a fullscreen overlay with assistant, terminal, apps, and files panels.
 
 **Step 4** — Tell OpenCode what you want:
 
@@ -192,7 +192,7 @@ judigot.com
         ▼
    Nginx (:443, SSL)
         │
-        ├─ /              → Dashboard Vite (:3200)  ← WorkspaceShell (app strip + OpenCode)
+        ├─ /              → Dashboard Vite (:3200)  ← WorkspaceShell (OpenCode + apps/files panels)
         ├─ /api/*         → Dashboard Hono API (:3100)
         │                   reads .env, checks port health
         ├─ /dev-bubble.js → Static widget bundle (/var/www/static/)
