@@ -180,6 +180,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
     gzip on;
     gzip_vary on;
@@ -245,6 +246,7 @@ for app in $APPS; do
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-XSS-Protection "1; mode=block" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
         proxy_buffering off;
 
         # Inject DevBubble widget into HTML responses
@@ -521,6 +523,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Content-Security-Policy "frame-ancestors https://${DOMAIN}" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
 EOF
 
@@ -539,6 +542,10 @@ cat >> "$OUTPUT" <<EOF
         proxy_read_timeout 86400s;
         proxy_buffering off;
         proxy_hide_header X-Frame-Options;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "frame-ancestors https://${DOMAIN}" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
     }
 }
 
