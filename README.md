@@ -280,7 +280,7 @@ All config lives in `.env` (created by `init.sh`). See `.env.example` for refere
 | `WORKSPACE_AUTH_PROVIDER` | `nginx` | Auth provider for the dev surface (`nginx` or `opencode`) |
 | `WORKSPACE_AUTH_USERNAME` | — | Basic auth username for the selected provider |
 | `WORKSPACE_AUTH_PASSWORD` | — | Basic auth password for the selected provider |
-| `ANTHROPIC_API_KEY` | — | API key for OpenCode (optional in init) |
+| `ANTHROPIC_API_KEY` | — | API key for OpenCode |
 | `APPS` | `""` | Registered apps (`slug:type:port[:backend_port[:options]]`) |
 | `DASHBOARD_PORT` | `3200` | Dashboard Vite dev server port |
 | `DASHBOARD_API_PORT` | `3100` | Dashboard Hono API port |

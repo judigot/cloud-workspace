@@ -375,7 +375,6 @@ else
   prompt         WORKSPACE_AUTH_USERNAME "OpenCode username"          "${WORKSPACE_AUTH_USERNAME:-}"
   prompt_secret  WORKSPACE_AUTH_PASSWORD "OpenCode password"          "${WORKSPACE_AUTH_PASSWORD:-}"
 fi
-prompt_secret  ANTHROPIC_API_KEY       "Anthropic API key"            "${ANTHROPIC_API_KEY:-}" "false"
 
 # Derived values
 WWW_DOMAIN=${WWW_DOMAIN:-"www.${DOMAIN}"}

@@ -322,7 +322,7 @@ All configuration lives in `~/workspace/.env`. Key variables:
 | `WORKSPACE_AUTH_PROVIDER` | `nginx` | Auth provider for the dev surface (`nginx` or `opencode`) |
 | `WORKSPACE_AUTH_USERNAME` | — | Basic auth username for the selected provider |
 | `WORKSPACE_AUTH_PASSWORD` | — | Basic auth password for the selected provider |
-| `ANTHROPIC_API_KEY` | — | API key (optional in init) |
+| `ANTHROPIC_API_KEY` | — | API key |
 | `APPS` | `""` | Registered apps: `slug:type:port[:backend_port[:options]]` |
 | `DASHBOARD_PORT` | `3200` | Dashboard Vite port |
 | `DASHBOARD_API_PORT` | `3100` | Dashboard API port |
