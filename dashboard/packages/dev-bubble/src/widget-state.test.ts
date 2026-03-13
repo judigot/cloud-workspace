@@ -42,6 +42,16 @@ describe("widget bubble invariants", () => {
     expect(switched.collapsedPanel).toBe("assistant");
   });
 
+  it("main bubble switches back to its collapsed panel before minimizing", () => {
+    const opened = openPanel(initialBubblePanelState, "assistant");
+    const switched = tapPanelBubble(opened, "apps");
+
+    const backToAssistant = tapPanelBubble(switched, "assistant");
+    expect(backToAssistant.isOpen).toBe(true);
+    expect(backToAssistant.activePanel).toBe("assistant");
+    expect(backToAssistant.collapsedPanel).toBe("assistant");
+  });
+
   it("closePanel enforces closed identity invariant", () => {
     const opened = openPanel(initialBubblePanelState, "assistant");
     const closed = closePanel(opened, "assistant");
