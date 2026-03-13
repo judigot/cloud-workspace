@@ -22,6 +22,7 @@ set -euo pipefail
 
 initubuntu && \
 installnodeenv && \
+installgithub && \
 usessh && \
 cd ~ && \
 rm -rf ~/workspace && \
