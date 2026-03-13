@@ -34,7 +34,8 @@ if [ -f .env ]; then :; else cp .env.example .env; fi && \
 
 The wizard prompts for:
 - Domain (default: `judigot.com`)
-- OpenCode username and password (basic auth)
+- Authentication provider (`nginx` or `opencode`, default: `nginx`)
+- Username and password for the selected auth provider
 - Anthropic API key (optional — skip if already configured)
 
 Then it automatically:
@@ -276,8 +277,9 @@ All config lives in `.env` (created by `init.sh`). See `.env.example` for refere
 |----------|---------|-------------|
 | `DOMAIN` | `judigot.com` | Primary domain |
 | `OPENCODE_PORT` | `4097` | OpenCode listening port |
-| `OPENCODE_SERVER_USERNAME` | — | Basic auth username |
-| `OPENCODE_SERVER_PASSWORD` | — | Basic auth password |
+| `WORKSPACE_AUTH_PROVIDER` | `nginx` | Auth provider for the dev surface (`nginx` or `opencode`) |
+| `WORKSPACE_AUTH_USERNAME` | — | Basic auth username for the selected provider |
+| `WORKSPACE_AUTH_PASSWORD` | — | Basic auth password for the selected provider |
 | `ANTHROPIC_API_KEY` | — | API key for OpenCode (optional in init) |
 | `APPS` | `""` | Registered apps (`slug:type:port[:backend_port[:options]]`) |
 | `DASHBOARD_PORT` | `3200` | Dashboard Vite dev server port |

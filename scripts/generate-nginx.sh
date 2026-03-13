@@ -12,8 +12,9 @@ SSL_CERT=${SSL_CERT:-"/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"}
 SSL_KEY=${SSL_KEY:-"/etc/letsencrypt/live/${DOMAIN}/privkey.pem"}
 
 OPENCODE_BACKEND=${OPENCODE_BACKEND:-"127.0.0.1:4097"}
-OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME:-""}
-OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD:-""}
+WORKSPACE_AUTH_PROVIDER=${WORKSPACE_AUTH_PROVIDER:-"nginx"}
+WORKSPACE_AUTH_USERNAME=${WORKSPACE_AUTH_USERNAME:-${OPENCODE_SERVER_USERNAME:-""}}
+WORKSPACE_AUTH_PASSWORD=${WORKSPACE_AUTH_PASSWORD:-${OPENCODE_SERVER_PASSWORD:-""}}
 OPENCODE_HTPASSWD_FILE=${OPENCODE_HTPASSWD_FILE:-"/etc/nginx/.htpasswd-opencode"}
 DEFAULT_APP=${DEFAULT_APP:-""}
 
@@ -496,15 +497,20 @@ server {
     ssl_certificate ${SSL_CERT};
     ssl_certificate_key ${SSL_KEY};
 
-    auth_basic "Secure Area";
-    auth_basic_user_file ${OPENCODE_HTPASSWD_FILE};
-
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Content-Security-Policy "frame-ancestors https://${DOMAIN} https://${OPENCODE_SUBDOMAIN}" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
 EOF
+
+if [ "${WORKSPACE_AUTH_PROVIDER}" = "nginx" ] && [ -n "${WORKSPACE_AUTH_USERNAME}" ] && [ -n "${WORKSPACE_AUTH_PASSWORD}" ]; then
+  cat >> "$OUTPUT" <<EOF
+    auth_basic "Secure Area";
+    auth_basic_user_file ${OPENCODE_HTPASSWD_FILE};
+
+EOF
+fi
 
 cat >> "$OUTPUT" <<EOF
 
