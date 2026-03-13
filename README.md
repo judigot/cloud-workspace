@@ -37,7 +37,6 @@ The wizard prompts for:
 - Domain (default: `judigot.com`)
 - Authentication provider (`nginx` or `opencode`, default: `nginx`)
 - Username and password for the selected auth provider
-- Anthropic API key (optional — skip if already configured)
 
 Then it automatically:
 1. Installs opencode (via `installOpenCode` from `.devrc`)
