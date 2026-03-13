@@ -46,6 +46,12 @@ export interface WorkspaceShellProps {
   terminalWsPath?: string;
 }
 
+export interface PublicAppsLauncherProps {
+  className?: string;
+}
+
+type AppsPanelVariant = "workspace" | "public";
+
 type TerminalShortcut = {
   label: string;
   value: string;
@@ -113,6 +119,11 @@ function normalizeFilterText(value: string) {
 function matchesCompactQuery(query: string, ...fields: Array<string | null | undefined>) {
   if (!query) return true;
   return fields.some((field) => field?.toLowerCase().includes(query));
+}
+
+function getBaseDomain(hostname: string) {
+  const parts = hostname.split(".");
+  return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
 }
 
 const AppTileIcon: FC<{ app: IApp }> = ({ app }) => {
@@ -434,7 +445,33 @@ const AssistantPanel: FC<{ opencodeUrl: string }> = ({ opencodeUrl }) => (
   />
 );
 
-const AppsPanel: FC<{ apps: IApp[]; currentSlug: string }> = ({ apps, currentSlug }) => {
+const AppTileActions: FC<{ app: IApp; variant: AppsPanelVariant }> = ({ app, variant }) => {
+  const baseDomain = getBaseDomain(window.location.hostname);
+  const devUrl = `https://dev.${baseDomain}/${app.slug}/`;
+
+  if (variant === "workspace") {
+    return (
+      <div className="ws-app-actions ws-app-actions-single">
+        <a href={app.url} target="_blank" rel="noreferrer" className="ws-app-action ws-app-action-primary">
+          Open
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ws-app-actions">
+      <a href={devUrl} target="_blank" rel="noreferrer" className="ws-app-action ws-app-action-secondary">
+        Develop
+      </a>
+      <a href={app.url} target="_blank" rel="noreferrer" className="ws-app-action ws-app-action-primary">
+        View
+      </a>
+    </div>
+  );
+};
+
+export const AppsPanel: FC<{ apps: IApp[]; currentSlug: string; variant?: AppsPanelVariant }> = ({ apps, currentSlug, variant = "workspace" }) => {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "up" | "down">("all");
 
@@ -453,7 +490,7 @@ const AppsPanel: FC<{ apps: IApp[]; currentSlug: string }> = ({ apps, currentSlu
   }, [apps, currentSlug, query, statusFilter]);
 
   return (
-    <div className="ws-apps-panel">
+    <div className={`ws-apps-panel${variant === "public" ? " ws-apps-panel-public" : ""}`}>
       <CompactFilterBar
         value={query}
         onChange={setQuery}
@@ -476,22 +513,37 @@ const AppsPanel: FC<{ apps: IApp[]; currentSlug: string }> = ({ apps, currentSlu
       />
       <div className="ws-apps-grid">
         {filteredApps.map((app) => (
-          <a
+          <article
             key={app.slug}
-            href={app.url}
             className={`ws-app-card${app.slug === currentSlug ? " ws-app-card-active" : ""}`}
-        >
-          <AppTileIcon app={app} />
-          <div className="ws-app-title">{app.title}</div>
-          <div className="ws-app-meta">
-            <span className="ws-app-slug">{app.slug}</span>
-            <div className={`ws-app-dot ws-app-dot-${app.status}`} />
-          </div>
-        </a>
+          >
+            <AppTileIcon app={app} />
+            <div className="ws-app-title">{app.title}</div>
+            <div className="ws-app-meta">
+              <span className="ws-app-slug">{app.slug}</span>
+              <div className={`ws-app-dot ws-app-dot-${app.status}`} />
+            </div>
+            <AppTileActions app={app} variant={variant} />
+          </article>
       ))}
       </div>
       {filteredApps.length === 0 ? <div className="ws-panel-empty">No apps match</div> : null}
     </div>
+  );
+};
+
+export const PublicAppsLauncher: FC<PublicAppsLauncherProps> = ({ className }) => {
+  const { config, loading } = useApps();
+
+  return (
+    <main className={`ws-public${className ? ` ${className}` : ""}`}>
+      <section className="ws-public-panel">
+        <h1 className="ws-public-section-title">All Apps</h1>
+
+        {loading && <div className="ws-panel-empty">Loading apps...</div>}
+        {!loading && <AppsPanel apps={config?.apps ?? []} currentSlug="" variant="public" />}
+      </section>
+    </main>
   );
 };
 
@@ -668,6 +720,9 @@ export const WorkspaceShell: FC<WorkspaceShellProps> = ({
 };
 
 export const WORKSPACE_SHELL_CSS = `
+  :root {
+    color-scheme: dark;
+  }
   .ws-shell {
     display: flex;
     flex-direction: column;
@@ -679,6 +734,56 @@ export const WORKSPACE_SHELL_CSS = `
   .ws-shell-fullpage {
     height: 100vh;
     height: 100dvh;
+  }
+  .ws-public {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 28px 18px 40px;
+    background:
+      radial-gradient(circle at top, rgba(92, 119, 255, 0.16), transparent 30%),
+      linear-gradient(180deg, #0a0f18 0%, #0c1220 100%);
+    color: #f5f7ff;
+  }
+  .ws-public-hero,
+  .ws-public-panel {
+    width: min(100%, 1120px);
+    margin: 0 auto;
+  }
+  .ws-public-eyebrow,
+  .ws-public-section-label {
+    margin: 0 0 8px;
+    color: #96a8ff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .ws-public-title,
+  .ws-public-section-title {
+    margin: 0;
+    line-height: 1;
+  }
+  .ws-public-title {
+    max-width: 14ch;
+    font-size: clamp(2.6rem, 6vw, 4.8rem);
+  }
+  .ws-public-copy {
+    max-width: 62ch;
+    margin: 16px 0 0;
+    color: #aab7d6;
+    font-size: 1rem;
+  }
+  .ws-public-panel {
+    margin-top: 12px;
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    background: rgba(9, 13, 21, 0.88);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+  }
+  .ws-public-section-title {
+    margin: 0 0 12px;
+    font-size: clamp(1.4rem, 2vw, 1.9rem);
   }
 
   .ws-iframe {
@@ -969,12 +1074,14 @@ export const WORKSPACE_SHELL_CSS = `
     display: flex;
     flex-direction: column;
     align-items: center;
+    position: relative;
     padding: 16px 12px;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 16px;
     text-decoration: none;
     transition: background 0.15s, border-color 0.15s;
+    cursor: pointer;
   }
   .ws-app-card:active {
     background: rgba(255,255,255,0.08);
@@ -995,6 +1102,7 @@ export const WORKSPACE_SHELL_CSS = `
     font-weight: 700;
     color: white;
     margin-bottom: 8px;
+    transition: filter 140ms ease, transform 140ms ease, opacity 140ms ease;
   }
   .ws-app-icon-image-wrap {
     background: rgba(255,255,255,0.08);
@@ -1047,6 +1155,79 @@ export const WORKSPACE_SHELL_CSS = `
   }
   .ws-app-dot-down, .ws-app-dot-unknown {
     background: #64748b;
+  }
+  .ws-app-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 14px;
+    z-index: 1;
+  }
+  .ws-app-actions-single {
+    grid-template-columns: 1fr;
+  }
+  .ws-app-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+    transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease;
+  }
+  .ws-app-action:hover {
+    transform: translateY(-1px);
+  }
+  .ws-app-action:active {
+    transform: translateY(0);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  }
+  .ws-app-action-primary {
+    color: #ffffff;
+    background: linear-gradient(180deg, rgba(110, 133, 255, 0.96), rgba(70, 91, 211, 0.98));
+    border-color: rgba(129, 148, 255, 0.42);
+  }
+  .ws-app-action-primary:hover {
+    background: linear-gradient(180deg, rgba(123, 145, 255, 0.98), rgba(76, 98, 221, 1));
+  }
+  .ws-app-action-secondary {
+    color: #d9e2ff;
+    background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03));
+    border-color: rgba(255,255,255,0.14);
+  }
+  .ws-app-action-secondary:hover {
+    background: linear-gradient(180deg, rgba(255,255,255,0.13), rgba(255,255,255,0.05));
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ws-apps-panel-public .ws-app-actions {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(172px, calc(100% - 24px));
+      margin-top: 0;
+      padding-top: 0;
+      opacity: 0;
+      transform: translate(-50%, calc(-50% + 4px)) scale(0.98);
+      pointer-events: none;
+    }
+    .ws-apps-panel-public .ws-app-card:hover .ws-app-icon,
+    .ws-apps-panel-public .ws-app-card:focus-within .ws-app-icon {
+      filter: blur(1px) brightness(0.72);
+      transform: scale(0.98);
+    }
+    .ws-apps-panel-public .ws-app-card:hover .ws-app-actions,
+    .ws-apps-panel-public .ws-app-card:focus-within .ws-app-actions {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto;
+    }
   }
 
   /* Files panel (mini) */
@@ -1225,6 +1406,13 @@ export const WORKSPACE_SHELL_CSS = `
   }
 
   @media (max-width: 480px) {
+    .ws-public {
+      padding: 18px 14px 28px;
+    }
+    .ws-public-panel {
+      padding: 14px;
+      border-radius: 18px;
+    }
     .ws-apps-grid,
     .ws-files-list,
     .ws-file-mini-item,
@@ -1234,6 +1422,12 @@ export const WORKSPACE_SHELL_CSS = `
     }
     .ws-file-mini-name {
       flex: 1;
+    }
+    .ws-apps-panel-public .ws-app-actions {
+      position: static;
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
     }
     .ws-files-panel {
       padding: 10px;

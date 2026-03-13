@@ -269,7 +269,7 @@ function resolveAppIconUrl(slug, roots) {
 }
 function resolveAppTitle(slug, roots) {
     return __awaiter(this, void 0, void 0, function () {
-        var root, htmlCandidates, _i, htmlCandidates_1, htmlPath, html, match, title, _a, packageJson, _b, _c, _d;
+        var root, humanizedSlug, htmlCandidates, _i, htmlCandidates_1, htmlPath, html, match, title, _a, packageJson, _b, _c, _d;
         var _e;
         return __generator(this, function (_f) {
             switch (_f.label) {
@@ -277,6 +277,7 @@ function resolveAppTitle(slug, roots) {
                     root = roots.get(slug);
                     if (!root)
                         return [2 /*return*/, humanizeSlug(slug)];
+                    humanizedSlug = humanizeSlug(slug);
                     htmlCandidates = [node_path_1.default.join(root, "index.html"), node_path_1.default.join(root, "public", "index.html")];
                     _i = 0, htmlCandidates_1 = htmlCandidates;
                     _f.label = 1;
@@ -291,8 +292,9 @@ function resolveAppTitle(slug, roots) {
                     html = _f.sent();
                     match = html.match(/<title>([^<]+)<\/title>/i);
                     title = (_e = match === null || match === void 0 ? void 0 : match[1]) === null || _e === void 0 ? void 0 : _e.trim();
-                    if (title)
-                        return [2 /*return*/, title];
+                    if (title) {
+                        return [2 /*return*/, title.toLowerCase() === slug.toLowerCase() ? humanizedSlug : title];
+                    }
                     return [3 /*break*/, 5];
                 case 4:
                     _a = _f.sent();
@@ -306,13 +308,16 @@ function resolveAppTitle(slug, roots) {
                     return [4 /*yield*/, (0, promises_1.readFile)(node_path_1.default.join(root, "package.json"), "utf-8")];
                 case 7:
                     packageJson = _c.apply(_b, [_f.sent()]);
-                    if (packageJson.name)
-                        return [2 /*return*/, humanizeSlug(packageJson.name)];
+                    if (packageJson.name) {
+                        return [2 /*return*/, packageJson.name.toLowerCase() === slug.toLowerCase()
+                                ? humanizedSlug
+                                : humanizeSlug(packageJson.name)];
+                    }
                     return [3 /*break*/, 9];
                 case 8:
                     _d = _f.sent();
                     return [3 /*break*/, 9];
-                case 9: return [2 /*return*/, humanizeSlug(slug)];
+                case 9: return [2 /*return*/, humanizedSlug];
             }
         });
     });

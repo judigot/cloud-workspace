@@ -418,7 +418,7 @@ const DevBubbleWidget: FC = () => {
     (e: ReactPointerEvent<HTMLButtonElement>) => {
       if (isOpen) {
         e.preventDefault();
-        closePanel(activePanel);
+        tapPanelBubble(collapsedPanel);
         return;
       }
       if (!dragging.current) return;
@@ -432,7 +432,7 @@ const DevBubbleWidget: FC = () => {
         openPanel(collapsedPanel);
       }
     },
-    [isOpen, activePanel, closePanel, collapsedPanel, snapToEdge, openPanel],
+    [isOpen, collapsedPanel, tapPanelBubble, snapToEdge, openPanel],
   );
 
   const onPointerCancel = useCallback(() => {
