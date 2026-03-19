@@ -14,15 +14,17 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 OPENCODE_HTPASSWD_FILE=${OPENCODE_HTPASSWD_FILE:-"/etc/nginx/.htpasswd-opencode"}
+WORKSPACE_AUTH_USERNAME=${WORKSPACE_AUTH_USERNAME:-${OPENCODE_SERVER_USERNAME:-""}}
+WORKSPACE_AUTH_PASSWORD=${WORKSPACE_AUTH_PASSWORD:-${OPENCODE_SERVER_PASSWORD:-""}}
 
 OUTPUT_PATH=${OUTPUT_PATH:-"${ROOT_DIR}/dist/nginx.conf"}
 TARGET_PATH=${TARGET_PATH:-"/etc/nginx/sites-available/default"}
 "${SCRIPT_DIR}/generate-nginx.sh" "${OUTPUT_PATH}"
 
-if [ -n "${OPENCODE_SERVER_USERNAME:-}" ] && [ -n "${OPENCODE_SERVER_PASSWORD:-}" ]; then
-  HASH=$(openssl passwd -apr1 "${OPENCODE_SERVER_PASSWORD}")
+if [ "${WORKSPACE_AUTH_PROVIDER:-nginx}" = "nginx" ] && [ -n "${WORKSPACE_AUTH_USERNAME:-}" ] && [ -n "${WORKSPACE_AUTH_PASSWORD:-}" ]; then
+  HASH=$(openssl passwd -apr1 "${WORKSPACE_AUTH_PASSWORD}")
   sudo mkdir -p "$(dirname "${OPENCODE_HTPASSWD_FILE}")"
-  printf '%s:%s\n' "${OPENCODE_SERVER_USERNAME}" "${HASH}" | sudo tee "${OPENCODE_HTPASSWD_FILE}" >/dev/null
+  printf '%s:%s\n' "${WORKSPACE_AUTH_USERNAME}" "${HASH}" | sudo tee "${OPENCODE_HTPASSWD_FILE}" >/dev/null
   sudo chmod 640 "${OPENCODE_HTPASSWD_FILE}"
   sudo chown root:www-data "${OPENCODE_HTPASSWD_FILE}"
 fi

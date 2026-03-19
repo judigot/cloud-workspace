@@ -80,6 +80,42 @@ prompt_secret() {
   eval "$var_name=\"\$input\""
 }
 
+prompt_choice() {
+  local var_name="$1" prompt_text="$2" default="$3"
+  shift 3
+  local choices=("$@")
+  local current=""
+
+  eval "current=\${${var_name}:-}"
+  [ -n "$current" ] && default="$current"
+
+  if [ ${#choices[@]} -eq 0 ]; then
+    fail "prompt_choice requires at least one option"
+    exit 1
+  fi
+
+  while true; do
+    printf '  %s' "$prompt_text"
+    if [ -n "$default" ]; then
+      printf ' [%s]' "$default"
+    fi
+    printf ' (%s): ' "$(IFS='/'; printf '%s' "${choices[*]}")"
+
+    local input
+    read -r input
+    input="${input:-$default}"
+
+    for choice in "${choices[@]}"; do
+      if [ "$input" = "$choice" ]; then
+        eval "$var_name=\"\$input\""
+        return 0
+      fi
+    done
+
+    warn "Invalid choice: ${input}. Choose one of: ${choices[*]}"
+  done
+}
+
 TOTAL_STEPS=6
 
 install_missing_system_prereqs() {
@@ -318,10 +354,27 @@ fi
 
 step 2 "Configuration"
 
-prompt         DOMAIN                  "Domain"                       "${DOMAIN:-judigot.com}"
-prompt         OPENCODE_SERVER_USERNAME "OpenCode username"           "${OPENCODE_SERVER_USERNAME:-}"
-prompt_secret  OPENCODE_SERVER_PASSWORD "OpenCode password"           "${OPENCODE_SERVER_PASSWORD:-}"
-prompt_secret  ANTHROPIC_API_KEY       "Anthropic API key"            "${ANTHROPIC_API_KEY:-}" "false"
+if [ -z "${WORKSPACE_AUTH_PROVIDER:-}" ]; then
+  if [ -n "${WORKSPACE_AUTH_USERNAME:-}" ] || [ -n "${WORKSPACE_AUTH_PASSWORD:-}" ]; then
+    WORKSPACE_AUTH_PROVIDER="${WORKSPACE_AUTH_PROVIDER:-nginx}"
+  elif [ -n "${OPENCODE_SERVER_USERNAME:-}" ] || [ -n "${OPENCODE_SERVER_PASSWORD:-}" ]; then
+    WORKSPACE_AUTH_PROVIDER="nginx"
+    WORKSPACE_AUTH_USERNAME="${WORKSPACE_AUTH_USERNAME:-${OPENCODE_SERVER_USERNAME:-}}"
+    WORKSPACE_AUTH_PASSWORD="${WORKSPACE_AUTH_PASSWORD:-${OPENCODE_SERVER_PASSWORD:-}}"
+  else
+    WORKSPACE_AUTH_PROVIDER="nginx"
+  fi
+fi
+
+prompt         DOMAIN                   "Domain"                      "${DOMAIN:-judigot.com}"
+prompt_choice  WORKSPACE_AUTH_PROVIDER  "Authentication provider"    "${WORKSPACE_AUTH_PROVIDER:-nginx}" nginx opencode
+if [ "${WORKSPACE_AUTH_PROVIDER}" = "nginx" ]; then
+  prompt         WORKSPACE_AUTH_USERNAME "Dev subdomain username"     "${WORKSPACE_AUTH_USERNAME:-}"
+  prompt_secret  WORKSPACE_AUTH_PASSWORD "Dev subdomain password"     "${WORKSPACE_AUTH_PASSWORD:-}"
+else
+  prompt         WORKSPACE_AUTH_USERNAME "OpenCode username"          "${WORKSPACE_AUTH_USERNAME:-}"
+  prompt_secret  WORKSPACE_AUTH_PASSWORD "OpenCode password"          "${WORKSPACE_AUTH_PASSWORD:-}"
+fi
 
 # Derived values
 WWW_DOMAIN=${WWW_DOMAIN:-"www.${DOMAIN}"}
@@ -347,8 +400,9 @@ WWW_DOMAIN=${WWW_DOMAIN}
 OPENCODE_SUBDOMAIN=${OPENCODE_SUBDOMAIN}
 OPENCODE_PORT=${OPENCODE_PORT}
 OPENCODE_BACKEND=${OPENCODE_BACKEND}
-OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME}
-OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD}
+WORKSPACE_AUTH_PROVIDER=${WORKSPACE_AUTH_PROVIDER}
+WORKSPACE_AUTH_USERNAME=${WORKSPACE_AUTH_USERNAME}
+WORKSPACE_AUTH_PASSWORD=${WORKSPACE_AUTH_PASSWORD}
 API_BACKEND=${API_BACKEND}
 VITE_SCAFFOLDER_PORT=${VITE_SCAFFOLDER_PORT}
 VITE_APPS="${VITE_APPS}"
@@ -414,9 +468,13 @@ SERVICE_FILE="/etc/systemd/system/opencode.service"
 # Build environment lines
 OPENCODE_ENV_LINES="Environment=\"PATH=${NODE_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"
 Environment=\"LANG=en_US.UTF-8\"
-Environment=\"LC_ALL=en_US.UTF-8\"
-Environment=\"OPENCODE_SERVER_USERNAME=${OPENCODE_SERVER_USERNAME}\"
-Environment=\"OPENCODE_SERVER_PASSWORD=${OPENCODE_SERVER_PASSWORD}\""
+Environment=\"LC_ALL=en_US.UTF-8\""
+
+if [ "${WORKSPACE_AUTH_PROVIDER}" = "opencode" ]; then
+  OPENCODE_ENV_LINES="${OPENCODE_ENV_LINES}
+Environment=\"OPENCODE_SERVER_USERNAME=${WORKSPACE_AUTH_USERNAME}\"
+Environment=\"OPENCODE_SERVER_PASSWORD=${WORKSPACE_AUTH_PASSWORD}\""
+fi
 
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
   OPENCODE_ENV_LINES="${OPENCODE_ENV_LINES}
@@ -574,5 +632,6 @@ printf '\n'
 cyan "  https://${DOMAIN}                → Dashboard + apps"
 cyan "  https://${OPENCODE_SUBDOMAIN}    → OpenCode (embeddable)"
 printf '\n'
-printf '  Auth: %s / ****\n' "$OPENCODE_SERVER_USERNAME"
+printf '  Auth provider: %s\n' "$WORKSPACE_AUTH_PROVIDER"
+printf '  Auth user: %s / ****\n' "$WORKSPACE_AUTH_USERNAME"
 printf '\n'
