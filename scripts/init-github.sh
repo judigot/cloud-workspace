@@ -55,6 +55,11 @@ write_env_value() {
   mv "$temporary_file" "$ENV_FILE"
 }
 
+if [ ! -t 0 ]; then
+  printf 'GitHub bootstrap requires an interactive terminal. Run it directly from SSH.\n' >&2
+  exit 1
+fi
+
 if [ -f "$ENV_FILE" ]; then
   set -a
   # shellcheck disable=SC1090
@@ -80,8 +85,9 @@ if [ -z "${OAUTH2_PROXY_COOKIE_SECRET:-}" ]; then
   OAUTH2_PROXY_COOKIE_SECRET=$(openssl rand -base64 32 | tr '+/' '-_')
 fi
 
-# init.sh currently owns the base EC2 bootstrap. Run it with temporary Basic Auth,
-# then switch the completed workspace to GitHub OAuth and redeploy Nginx.
+# init.sh owns the base EC2 bootstrap. Temporary Basic Auth values are written as
+# defaults only; init.sh is invoked directly so it stays attached to the SSH TTY.
+# This preserves its existing DNS mismatch prompt and retry loop.
 TEMP_AUTH_USER="bootstrap"
 TEMP_AUTH_PASSWORD=$(openssl rand -hex 24)
 
@@ -93,7 +99,8 @@ write_env_value WORKSPACE_AUTH_PASSWORD "$TEMP_AUTH_PASSWORD"
 chmod 600 "$ENV_FILE"
 
 printf '\nBootstrapping the workspace before enabling GitHub authentication...\n'
-printf '\n\n\n\n' | bash "${SCRIPT_DIR}/init.sh"
+printf 'Accept the displayed defaults in the base setup. If DNS is not ready, update it and press Enter to retry without leaving SSH.\n\n'
+bash "${SCRIPT_DIR}/init.sh"
 
 write_env_value WORKSPACE_AUTH_PROVIDER "github"
 write_env_value WORKSPACE_AUTH_USERNAME ""
