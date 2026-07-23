@@ -63,7 +63,7 @@ if ! id oauth2-proxy >/dev/null 2>&1; then
 fi
 
 sudo mkdir -p "$(dirname "$SERVICE_ENV_FILE")"
-COOKIE_DOMAIN=".${OPENCODE_SUBDOMAIN#*.}"
+COOKIE_DOMAIN=${OAUTH2_PROXY_COOKIE_DOMAIN:-${OPENCODE_SUBDOMAIN}}
 
 sudo tee "$SERVICE_ENV_FILE" >/dev/null <<EOF
 OAUTH2_PROXY_PROVIDER=github
