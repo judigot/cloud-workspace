@@ -43,4 +43,13 @@ printf '%s\n' 'server { }' > "$UNMODIFIED_PATH"
 WORKSPACE_AUTH_PROVIDER=nginx bash "${ROOT_DIR}/scripts/apply-github-auth.sh" "$UNMODIFIED_PATH"
 grep -Fxq 'server { }' "$UNMODIFIED_PATH"
 
+# The GitHub bootstrap must keep init.sh attached to the SSH terminal so the
+# existing DNS mismatch prompt can wait and retry instead of exiting.
+if grep -Eq "printf .*\|[[:space:]]*bash .*init\.sh" "${ROOT_DIR}/scripts/init-github.sh"; then
+  echo "init-github.sh must not pipe input into init.sh" >&2
+  exit 1
+fi
+grep -Fq 'if [ ! -t 0 ]; then' "${ROOT_DIR}/scripts/init-github.sh"
+grep -Fq 'bash "${SCRIPT_DIR}/init.sh"' "${ROOT_DIR}/scripts/init-github.sh"
+
 echo "GitHub authentication integration tests passed"
