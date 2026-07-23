@@ -23,8 +23,8 @@ TARGET_PATH=${TARGET_PATH:-"/etc/nginx/sites-available/default"}
 
 case "${WORKSPACE_AUTH_PROVIDER:-nginx}" in
   github)
-    "${SCRIPT_DIR}/setup-github-auth.sh"
-    "${SCRIPT_DIR}/apply-github-auth.sh" "${OUTPUT_PATH}"
+    bash "${SCRIPT_DIR}/setup-github-auth.sh"
+    bash "${SCRIPT_DIR}/apply-github-auth.sh" "${OUTPUT_PATH}"
     ;;
   nginx)
     if [ -n "${WORKSPACE_AUTH_USERNAME:-}" ] && [ -n "${WORKSPACE_AUTH_PASSWORD:-}" ]; then
