@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
 ENV_FILE="${ROOT_DIR}/.env"
+RUNTIME_INIT="${SCRIPT_DIR}/.init-github-runtime.sh"
 
 prompt_value() {
   local variable="$1"
@@ -55,6 +56,11 @@ write_env_value() {
   mv "$temporary_file" "$ENV_FILE"
 }
 
+cleanup() {
+  rm -f "$RUNTIME_INIT"
+}
+trap cleanup EXIT
+
 if [ ! -t 0 ]; then
   printf 'GitHub bootstrap requires an interactive terminal. Run it directly from SSH.\n' >&2
   exit 1
@@ -85,23 +91,8 @@ if [ -z "${OAUTH2_PROXY_COOKIE_SECRET:-}" ]; then
   OAUTH2_PROXY_COOKIE_SECRET=$(openssl rand -base64 32 | tr '+/' '-_')
 fi
 
-# init.sh owns the base EC2 bootstrap. Temporary Basic Auth values are written as
-# defaults only; init.sh is invoked directly so it stays attached to the SSH TTY.
-# This preserves its existing DNS mismatch prompt and retry loop.
-TEMP_AUTH_USER="bootstrap"
-TEMP_AUTH_PASSWORD=$(openssl rand -hex 24)
-
 write_env_value DOMAIN "$DOMAIN"
 write_env_value OPENCODE_SUBDOMAIN "$OPENCODE_SUBDOMAIN"
-write_env_value WORKSPACE_AUTH_PROVIDER "nginx"
-write_env_value WORKSPACE_AUTH_USERNAME "$TEMP_AUTH_USER"
-write_env_value WORKSPACE_AUTH_PASSWORD "$TEMP_AUTH_PASSWORD"
-chmod 600 "$ENV_FILE"
-
-printf '\nBootstrapping the workspace before enabling GitHub authentication...\n'
-printf 'Accept the displayed defaults in the base setup. If DNS is not ready, update it and press Enter to retry without leaving SSH.\n\n'
-bash "${SCRIPT_DIR}/init.sh"
-
 write_env_value WORKSPACE_AUTH_PROVIDER "github"
 write_env_value WORKSPACE_AUTH_USERNAME ""
 write_env_value WORKSPACE_AUTH_PASSWORD ""
@@ -112,7 +103,80 @@ write_env_value OAUTH2_PROXY_COOKIE_SECRET "$OAUTH2_PROXY_COOKIE_SECRET"
 write_env_value OAUTH2_PROXY_PORT "$OAUTH2_PROXY_PORT"
 chmod 600 "$ENV_FILE"
 
-bash "${SCRIPT_DIR}/deploy-nginx.sh"
+# Use the existing stable init workflow and DNS retry loop, but extend its
+# configuration section for GitHub authentication. The generated runtime copy
+# lives beside init.sh so all relative script paths remain unchanged.
+python3 - "${SCRIPT_DIR}/init.sh" "$RUNTIME_INIT" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text()
+output = Path(sys.argv[2])
+
+old_prompt = '''prompt         DOMAIN                   "Domain"                      "${DOMAIN:-judigot.com}"
+prompt_choice  WORKSPACE_AUTH_PROVIDER  "Authentication provider"    "${WORKSPACE_AUTH_PROVIDER:-nginx}" nginx opencode
+if [ "${WORKSPACE_AUTH_PROVIDER}" = "nginx" ]; then
+  prompt         WORKSPACE_AUTH_USERNAME "Dev subdomain username"     "${WORKSPACE_AUTH_USERNAME:-}"
+  prompt_secret  WORKSPACE_AUTH_PASSWORD "Dev subdomain password"     "${WORKSPACE_AUTH_PASSWORD:-}"
+else
+  prompt         WORKSPACE_AUTH_USERNAME "OpenCode username"          "${WORKSPACE_AUTH_USERNAME:-}"
+  prompt_secret  WORKSPACE_AUTH_PASSWORD "OpenCode password"          "${WORKSPACE_AUTH_PASSWORD:-}"
+fi
+'''
+
+new_prompt = '''prompt         DOMAIN                   "Domain"                      "${DOMAIN:-judigot.com}"
+prompt_choice  WORKSPACE_AUTH_PROVIDER  "Authentication provider"    "${WORKSPACE_AUTH_PROVIDER:-github}" github nginx opencode
+case "${WORKSPACE_AUTH_PROVIDER}" in
+  github)
+    WORKSPACE_AUTH_USERNAME=""
+    WORKSPACE_AUTH_PASSWORD=""
+    ;;
+  nginx)
+    prompt         WORKSPACE_AUTH_USERNAME "Dev subdomain username"     "${WORKSPACE_AUTH_USERNAME:-}"
+    prompt_secret  WORKSPACE_AUTH_PASSWORD "Dev subdomain password"     "${WORKSPACE_AUTH_PASSWORD:-}"
+    ;;
+  opencode)
+    prompt         WORKSPACE_AUTH_USERNAME "OpenCode username"          "${WORKSPACE_AUTH_USERNAME:-}"
+    prompt_secret  WORKSPACE_AUTH_PASSWORD "OpenCode password"          "${WORKSPACE_AUTH_PASSWORD:-}"
+    ;;
+esac
+'''
+
+if old_prompt not in source:
+    raise SystemExit("Could not locate init.sh authentication prompt block")
+source = source.replace(old_prompt, new_prompt, 1)
+
+old_env = '''WORKSPACE_AUTH_PROVIDER=${WORKSPACE_AUTH_PROVIDER}
+WORKSPACE_AUTH_USERNAME=${WORKSPACE_AUTH_USERNAME}
+WORKSPACE_AUTH_PASSWORD=${WORKSPACE_AUTH_PASSWORD}
+API_BACKEND=${API_BACKEND}
+'''
+new_env = '''WORKSPACE_AUTH_PROVIDER=${WORKSPACE_AUTH_PROVIDER}
+WORKSPACE_AUTH_USERNAME=${WORKSPACE_AUTH_USERNAME}
+WORKSPACE_AUTH_PASSWORD=${WORKSPACE_AUTH_PASSWORD}
+GITHUB_OAUTH_CLIENT_ID=${GITHUB_OAUTH_CLIENT_ID:-}
+GITHUB_OAUTH_CLIENT_SECRET=${GITHUB_OAUTH_CLIENT_SECRET:-}
+GITHUB_ALLOWED_USERS=${GITHUB_ALLOWED_USERS:-}
+OAUTH2_PROXY_COOKIE_SECRET=${OAUTH2_PROXY_COOKIE_SECRET:-}
+OAUTH2_PROXY_PORT=${OAUTH2_PROXY_PORT:-4180}
+API_BACKEND=${API_BACKEND}
+'''
+
+if old_env not in source:
+    raise SystemExit("Could not locate init.sh environment output block")
+source = source.replace(old_env, new_env, 1)
+
+output.write_text(source)
+output.chmod(0o700)
+PY
+
+export WORKSPACE_AUTH_PROVIDER="github"
+export GITHUB_OAUTH_CLIENT_ID GITHUB_OAUTH_CLIENT_SECRET GITHUB_ALLOWED_USERS
+export OAUTH2_PROXY_COOKIE_SECRET OAUTH2_PROXY_PORT
+
+printf '\nBootstrapping the workspace with GitHub authentication...\n'
+printf 'If DNS is not ready, update it and press Enter to retry without leaving SSH.\n\n'
+bash "$RUNTIME_INIT"
 
 printf '\nGitHub authentication is enabled.\n'
 printf 'Open https://%s and sign in with an allowed GitHub account.\n' "$OPENCODE_SUBDOMAIN"
