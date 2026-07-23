@@ -39,7 +39,7 @@ The wizard prompts for:
 - Username and password for the selected auth provider
 
 Then it automatically:
-1. Installs opencode (via `installOpenCode` from `.devrc`)
+1. Installs the pinned OpenCode version (`opencode-ai@1.4.0`)
 2. Issues TLS certificates (`certbot --standalone`)
 3. Generates and deploys the nginx config with SSL
 4. Creates and starts the `opencode.service` systemd unit
