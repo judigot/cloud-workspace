@@ -1,24 +1,34 @@
 # Workspace
 
-Mobile-first development workspace. Vibe code from your phone — open your app, tap the chat bubble, tell the AI what to change, see it live.
+Mobile-first development workspace. Vibe code from your phone — open your app, tap the chat bubble, tell the AI what to change, and see it live.
 
-## User Journeys
+## Fresh EC2 setup with GitHub authentication
 
-### Journey 1: Initial Setup (Fresh EC2)
+GitHub authentication is handled by oauth2-proxy in front of the development subdomain. Nginx remains the public reverse proxy, while OpenCode, the workspace services, and development applications remain on localhost.
 
-You just ran `terraform apply` and have an IP address.
+### Before running the bootstrap
 
-**Step 1 — Bootstrap the system**
+Create a GitHub OAuth App with:
 
-SSH into the instance and load the devrc toolchain:
+- Homepage URL: `https://dev.judigot.com`
+- Authorization callback URL: `https://dev.judigot.com/oauth2/callback`
+
+Keep the generated client ID and client secret ready.
+
+The following DNS records must point to the EC2 public IP before Certbot runs:
+
+- `judigot.com`
+- `www.judigot.com`
+- `dev.judigot.com`
+
+### Test the PR branch on a fresh EC2 instance
+
+Run:
 
 ```sh
 set -euo pipefail
 
 . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
-
-# Preserve .env across re-clone (holds domain, creds, API keys)
-[ -f ~/workspace/.env ] && cp ~/workspace/.env /tmp/workspace-env-backup
 
 initubuntu && \
 installnodeenv && \
@@ -26,262 +36,153 @@ installgithub && \
 usessh && \
 cd ~ && \
 rm -rf ~/workspace && \
-git clone git@github.com:judigot/workspace.git ~/workspace && \
+git clone --branch agent/github-oauth-authentication --single-branch git@github.com:judigot/workspace.git ~/workspace && \
 cd ~/workspace && \
-if [ -f /tmp/workspace-env-backup ]; then mv /tmp/workspace-env-backup ~/workspace/.env; fi && \
-if [ -f .env ]; then :; else cp .env.example .env; fi && \
-./scripts/init.sh
+cp .env.example .env && \
+bash ./scripts/init-github.sh
 ```
 
-The wizard prompts for:
-- Domain (default: `judigot.com`)
-- Authentication provider (`nginx` or `opencode`, default: `nginx`)
-- Username and password for the selected auth provider
+The GitHub bootstrap asks for:
 
-Then it automatically:
-1. Installs the pinned OpenCode version (`opencode-ai@1.4.0`)
-2. Issues TLS certificates (`certbot --standalone`)
-3. Generates and deploys the nginx config with SSL
-4. Creates and starts the `opencode.service` systemd unit
-5. Installs dashboard deps and starts the dashboard services
+- GitHub OAuth client ID
+- GitHub OAuth client secret
+- allowed GitHub usernames, defaulting to `judigot`
 
-**Step 2 — Open the browser**
+The session-cookie secret is generated automatically.
 
-| URL | What you see |
-|-----|-------------|
-| `https://judigot.com` | Workspace — OpenCode shell with apps/files panels |
-| `https://dev.judigot.com` | OpenCode (standalone, also embedded in the workspace shell) |
+The bootstrap then:
 
----
+1. installs the pinned OpenCode version (`opencode-ai@1.4.0`);
+2. issues TLS certificates;
+3. configures OpenCode and the dashboard services;
+4. installs oauth2-proxy;
+5. creates and starts its hardened systemd service;
+6. applies GitHub authentication to the entire development subdomain;
+7. validates and reloads Nginx.
 
-### Journey 2: Create an App via OpenCode
+### Expected authentication test
 
-Open OpenCode at `dev.judigot.com` (or from the chat bubble inside any app). Ask it to create an app.
+Open `https://dev.judigot.com`.
 
-> "Create a new React app called my-app"
+Expected behavior:
 
-OpenCode (via the `create-app` agent) will:
-1. Scaffold `~/my-app` with Vite + React + TypeScript
-2. Configure `vite.config.ts` with the correct base path, HMR, and port
-3. Run `~/workspace/scripts/add-app.sh my-app frontend 5177`
-4. Start the dev server
+1. The browser redirects to GitHub.
+2. GitHub authenticates your account.
+3. oauth2-proxy checks that the GitHub username is allowed.
+4. The browser returns to the originally requested page.
+5. OpenCode, workspace APIs, development app previews, HMR, and WebSockets share the authenticated session.
 
-Result:
-- `https://judigot.com/my-app/` is live
-- Apps panel at `judigot.com` shows it with icon/title/status metadata
-- Open the Apps bubble to navigate to it; the DevBubble on the app page has the same shell
-
-Full-stack apps work too:
-
-> "Create a full-stack app called my-api with a Hono backend"
-
-```sh
-# What the agent runs:
-~/workspace/scripts/add-app.sh my-api fullstack 3000 5000 ws
-```
-
----
-
-### Journey 3: Vibe Code from Your Phone
-
-This is the core workflow. You're on your phone.
-
-**Step 1** — Open `judigot.com`. You see the **WorkspaceShell**: OpenCode in the main view, with dedicated panels for apps, files, and terminal in the same shell.
-
-```
-┌─────────────────────────┐
-│     Workspace Shell     │
-├─────────────────────────┤
-│                         │
-│        OpenCode         │
-│                         │
-│                         │
-└─────────────────────────┘
-```
-
-**Step 2** — Tap the scaffolder chip. The browser navigates to `judigot.com/scaffolder/` — a clean public page with no dev bubble injected.
-
-```
-┌─────────────────────────┐
-│  judigot.com/scaffolder │
-│                         │
-│     Your app runs as    │
-│     a native page       │
-│                         │
-│                  🟣      │
-│                  bubble  │
-└─────────────────────────┘
-```
-
-For development pages, use `dev.judigot.com/<slug>/`. The DevBubble widget is injected there by nginx (`sub_filter`) and the whole dev subdomain is auth-protected. Public app pages at `judigot.com/<slug>/` stay clean for client viewing.
-
-**Step 3** — You see something you want to change. Tap the chat bubble. It opens the same WorkspaceShell inside a fullscreen overlay with assistant, terminal, apps, and files panels.
-
-**Step 4** — Tell OpenCode what you want:
-
-> "Change the header background to red"
-
-OpenCode edits the code. Vite HMR picks up the change. **You see it instantly.**
-
-**Step 5** — Tap minimize. You're back to your app with the change applied. Keep going.
-
-This is the loop:
-
-```
-Look at app → Tap bubble → Tell AI what to change → See it live → Repeat
-```
-
-No editor. No terminal. No laptop. Just your phone and the running app.
-
----
-
-### Journey 4: Navigate Between Apps
-
-The public and dev surfaces now have different purposes:
-
-- `judigot.com/<slug>/` — clean client-facing app page, no dev widget injected
-- `dev.judigot.com/<slug>/` — auth-protected development view with the DevBubble and full workspace shell
-
-Inside the DevBubble panel, the shared **WorkspaceShell** gives you:
-
-- **Assistant** — OpenCode chat
-- **Terminal** — shell access
-- **Apps** — searchable launcher with icon/title/status metadata
-- **Files** — searchable uploaded asset picker
-
-On app pages, the DevBubble appears as a draggable floating button (bottom-right, like a Messenger chat head):
-- Minimized: exactly one floating bubble is visible and snapped to the screen edge
-- Tap to expand — opens the WorkspaceShell in a fullscreen overlay
-- Expanded: the collapsed bubble stays at the dock edge and the remaining bubbles fan out beside it (`terminal`, `apps`, `files`, then `home`)
-- Tap any panel bubble once — switch the content to that panel
-- Tap the currently active bubble again — minimize, and that same bubble becomes the new floating minimized identity
-- Tap Home — navigates back to `judigot.com`
-
-**How it works:** The `WorkspaceShell` is a single React component shared by both contexts. On `judigot.com` it renders as the full page workspace. On `dev.judigot.com/<slug>/`, nginx injects a `<script>` tag via `sub_filter` that loads a self-contained bundle (`/dev-bubble.js`) and renders the shell inside the bubble's overlay panel.
-
----
-
-### Journey 5: Add an App Manually
-
-```sh
-# Frontend only (Vite)
-~/workspace/scripts/add-app.sh my-app 5177
-
-# Full-stack (Vite frontend + API backend + websockets)
-~/workspace/scripts/add-app.sh my-api fullstack 3000 5000 ws
-
-# Laravel
-~/workspace/scripts/add-app.sh admin laravel 8000
-```
-
-The dashboard picks up new apps automatically (reads `.env` live).
-
----
-
-### Journey 6: Re-run init (Idempotent)
-
-```sh
-cd ~/workspace && ./scripts/init.sh
-```
-
-Reads `.env` for defaults. Skips certs if they already exist on disk. Restarts services cleanly.
-
----
+A GitHub account not included in `GITHUB_ALLOWED_USERS` must be denied.
 
 ## Architecture
 
-```
-judigot.com
-        │
-        ▼
-   Nginx (:443, SSL)
-        │
-        ├─ /              → Dashboard Vite (:3200)  ← WorkspaceShell (OpenCode + apps/files panels)
-        ├─ /api/*         → Dashboard Hono API (:3100)
-        │                   reads .env, checks port health
-        ├─ /dev-bubble.js → Static widget bundle (/var/www/static/)
-        ├─ /<slug>/       → Public app Vite/frontend route (clean, no widget)
-        ├─ /<slug>/api/   → App backend API (fullstack only)
-        ├─ /<slug>/ws     → App websocket (fullstack+ws)
-        └─ /<slug>/       → App backend + sub_filter (laravel)
-
-dev.judigot.com → OpenCode (:4097, auth + dev app routes with widget injection)
+```text
+Browser
+  |
+  v
+Nginx :443
+  |
+  +-- /oauth2/* ----------> oauth2-proxy :4180
+  |
+  +-- auth_request -------> GitHub-backed session check
+  |
+  +-- OpenCode -----------> 127.0.0.1:4097
+  +-- Workspace UI -------> 127.0.0.1:3200
+  +-- Workspace API ------> 127.0.0.1:3100
+  +-- Dev applications ---> localhost application ports
 ```
 
-**Unified WorkspaceShell:**
+GitHub authentication protects `dev.judigot.com`, including HTTP and WebSocket traffic routed through Nginx.
 
-Both `judigot.com` and the DevBubble overlay render the same `WorkspaceShell` React component:
-```
-┌────────────────────────────────────────┐
-│ [app1 ●] [app2 ●] [app3 ○]  ← strip  │
-├────────────────────────────────────────┤
-│              OpenCode iframe           │
-└────────────────────────────────────────┘
-```
+Public application routes at `judigot.com/<slug>/` remain unchanged and are not protected by the development authentication gateway.
 
-**DevBubble injection (nginx `sub_filter`):**
+## Security boundary
 
-For every app location, nginx rewrites the HTML response:
-```
-sub_filter '</body>' '<script src="/dev-bubble.js" data-opencode-url="..." data-dashboard-url="..."></script></body>';
-```
-The widget bundle includes React+ReactDOM and the `WorkspaceShell` component.
+The setup assumes:
 
-**The vibe-coding loop:**
+- only Nginx ports are publicly reachable;
+- OpenCode, oauth2-proxy, Vite, APIs, and internal tools are not exposed directly;
+- the allowed-user list contains only trusted GitHub usernames;
+- the GitHub account uses MFA or a passkey;
+- OAuth and cookie secrets remain outside Git;
+- SSH and other non-web services use separate controls.
 
-```
-Phone → judigot.com (WorkspaceShell) → tap app chip → /scaffolder/
-                                                          │
-                                                app loads as native page
-                                                DevBubble injected by nginx
-                                                          │
-                                                tap bubble → WorkspaceShell overlay
-                                                          │
-                                                "change X" → AI edits code
-                                                          │
-                                                Vite HMR → change visible instantly
-                                                          │
-                                                minimize → back to app
+GitHub OAuth does not authenticate SSH, Mosh, direct database connections, or any service that bypasses Nginx.
+
+## Rerunning the setup
+
+To rerun the GitHub-authenticated setup:
+
+```sh
+cd ~/workspace && bash ./scripts/init-github.sh
 ```
 
-## App Types
+Existing certificates and installed binaries are reused where possible.
 
-| Type | Command | Nginx routes generated |
-|------|---------|----------------------|
-| `frontend` | `add-app.sh my-app 5177` | `/<slug>/` → Vite, `/<slug>/__vite_hmr` → HMR |
-| `fullstack` | `add-app.sh my-api fullstack 3000 5000 ws` | Above + `/<slug>/api/` → backend, `/<slug>/ws` → websocket |
-| `laravel` | `add-app.sh admin laravel 8000` | `/<slug>/` → PHP backend |
+To regenerate and deploy Nginx after adding an application:
 
-## Repos
+```sh
+cd ~/workspace && bash ./scripts/deploy-nginx.sh
+```
 
-| Directory | Purpose |
-|-----------|---------|
-| `~/workspace` | Monorepo root — nginx config, init wizard, scripts, agents |
-| `~/workspace/dashboard` | Dashboard React app + Hono API + DevBubble package |
+## Adding applications
 
-## Scripts
+Frontend application:
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/init.sh` | Full setup wizard — run once after clone |
-| `scripts/add-app.sh` | Register a new app (frontend/fullstack/laravel) and redeploy nginx |
-| `scripts/deploy-nginx.sh` | Regenerate + deploy nginx config + copy widget bundle to `/var/www/static/` |
-| `scripts/generate-nginx.sh` | Generate nginx.conf from env vars (includes `sub_filter` injection) |
-| `scripts/health-check.sh` | Smoke test all endpoints |
+```sh
+~/workspace/scripts/add-app.sh my-app frontend 5177
+```
 
-## Configuration
+Full-stack application:
 
-All config lives in `.env` (created by `init.sh`). See `.env.example` for reference.
+```sh
+~/workspace/scripts/add-app.sh my-api fullstack 3000 5000 ws
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DOMAIN` | `judigot.com` | Primary domain |
-| `OPENCODE_PORT` | `4097` | OpenCode listening port |
-| `WORKSPACE_AUTH_PROVIDER` | `nginx` | Auth provider for the dev surface (`nginx` or `opencode`) |
-| `WORKSPACE_AUTH_USERNAME` | — | Basic auth username for the selected provider |
-| `WORKSPACE_AUTH_PASSWORD` | — | Basic auth password for the selected provider |
-| `ANTHROPIC_API_KEY` | — | API key for OpenCode |
-| `APPS` | `""` | Registered apps (`slug:type:port[:backend_port[:options]]`) |
-| `DASHBOARD_PORT` | `3200` | Dashboard Vite dev server port |
-| `DASHBOARD_API_PORT` | `3100` | Dashboard Hono API port |
-| `DEFAULT_APP` | `""` | App slug to show on `/` instead of the dashboard grid (e.g. `scaffolder`) |
+Laravel or backend application:
+
+```sh
+~/workspace/scripts/add-app.sh admin laravel 8000
+```
+
+Development routes use `dev.judigot.com/<slug>/` and inherit the GitHub-authenticated browser session, including Vite HMR and application WebSockets.
+
+Public routes remain at `judigot.com/<slug>/`.
+
+## Authentication providers
+
+The workspace supports:
+
+- `github` — GitHub OAuth through oauth2-proxy and Nginx `auth_request`;
+- `nginx` — Nginx Basic Authentication;
+- `opencode` — OpenCode's built-in username and password.
+
+GitHub is the recommended provider for the personal browser-based workspace.
+
+Rollback is performed by changing `WORKSPACE_AUTH_PROVIDER` in `.env` to `nginx` or `opencode`, supplying the relevant credentials, and rerunning the Nginx deployment.
+
+## Important files
+
+| File | Purpose |
+|---|---|
+| `scripts/init-github.sh` | Fresh EC2 GitHub-authenticated bootstrap entrypoint |
+| `scripts/setup-github-auth.sh` | Installs and configures oauth2-proxy and systemd |
+| `scripts/apply-github-auth.sh` | Applies Nginx OAuth enforcement |
+| `scripts/deploy-nginx.sh` | Generates, authenticates, validates, and deploys Nginx |
+| `scripts/init.sh` | Existing base workspace setup wizard |
+| `docs/github-authentication.md` | Detailed authentication architecture and security notes |
+| `tests/github-auth.sh` | Authentication configuration integration checks |
+
+## GitHub authentication configuration
+
+| Variable | Description |
+|---|---|
+| `WORKSPACE_AUTH_PROVIDER` | Set to `github` |
+| `GITHUB_OAUTH_CLIENT_ID` | GitHub OAuth App client ID |
+| `GITHUB_OAUTH_CLIENT_SECRET` | GitHub OAuth App client secret |
+| `GITHUB_ALLOWED_USERS` | Comma-separated GitHub usernames allowed to enter |
+| `OAUTH2_PROXY_COOKIE_SECRET` | Secret used to protect browser sessions |
+| `OAUTH2_PROXY_PORT` | Local oauth2-proxy port, default `4180` |
+| `OPENCODE_SUBDOMAIN` | Protected development hostname |
+
+Never commit the real client secret or cookie secret.

@@ -21,13 +21,27 @@ OUTPUT_PATH=${OUTPUT_PATH:-"${ROOT_DIR}/dist/nginx.conf"}
 TARGET_PATH=${TARGET_PATH:-"/etc/nginx/sites-available/default"}
 "${SCRIPT_DIR}/generate-nginx.sh" "${OUTPUT_PATH}"
 
-if [ "${WORKSPACE_AUTH_PROVIDER:-nginx}" = "nginx" ] && [ -n "${WORKSPACE_AUTH_USERNAME:-}" ] && [ -n "${WORKSPACE_AUTH_PASSWORD:-}" ]; then
-  HASH=$(openssl passwd -apr1 "${WORKSPACE_AUTH_PASSWORD}")
-  sudo mkdir -p "$(dirname "${OPENCODE_HTPASSWD_FILE}")"
-  printf '%s:%s\n' "${WORKSPACE_AUTH_USERNAME}" "${HASH}" | sudo tee "${OPENCODE_HTPASSWD_FILE}" >/dev/null
-  sudo chmod 640 "${OPENCODE_HTPASSWD_FILE}"
-  sudo chown root:www-data "${OPENCODE_HTPASSWD_FILE}"
-fi
+case "${WORKSPACE_AUTH_PROVIDER:-nginx}" in
+  github)
+    bash "${SCRIPT_DIR}/setup-github-auth.sh"
+    bash "${SCRIPT_DIR}/apply-github-auth.sh" "${OUTPUT_PATH}"
+    ;;
+  nginx)
+    if [ -n "${WORKSPACE_AUTH_USERNAME:-}" ] && [ -n "${WORKSPACE_AUTH_PASSWORD:-}" ]; then
+      HASH=$(openssl passwd -apr1 "${WORKSPACE_AUTH_PASSWORD}")
+      sudo mkdir -p "$(dirname "${OPENCODE_HTPASSWD_FILE}")"
+      printf '%s:%s\n' "${WORKSPACE_AUTH_USERNAME}" "${HASH}" | sudo tee "${OPENCODE_HTPASSWD_FILE}" >/dev/null
+      sudo chmod 640 "${OPENCODE_HTPASSWD_FILE}"
+      sudo chown root:www-data "${OPENCODE_HTPASSWD_FILE}"
+    fi
+    ;;
+  opencode)
+    ;;
+  *)
+    echo "Unsupported WORKSPACE_AUTH_PROVIDER: ${WORKSPACE_AUTH_PROVIDER}" >&2
+    exit 1
+    ;;
+esac
 
 # Copy DevBubble widget to static serving directory
 WIDGET_SRC="${ROOT_DIR}/dist/dev-bubble.js"
