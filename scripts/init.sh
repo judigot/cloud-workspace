@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
 ENV_FILE="${ROOT_DIR}/.env"
+OPENCODE_VERSION="1.4.0"
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -334,20 +335,22 @@ if [ ${#MISSING[@]} -gt 0 ]; then
   exit 1
 fi
 
-# Check opencode — install via .devrc alias if missing
+# Install the repository's pinned opencode version.
+INSTALLED_OPENCODE_VERSION=""
 if command -v opencode >/dev/null 2>&1; then
-  ok "opencode $(opencode --version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+[.0-9]*' | head -1)"
+  INSTALLED_OPENCODE_VERSION=$(opencode --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+fi
+
+if [ "$INSTALLED_OPENCODE_VERSION" = "$OPENCODE_VERSION" ]; then
+  ok "opencode ${OPENCODE_VERSION}"
 else
-  warn "opencode not found — installing..."
-  if [ -f "$HOME/.devrc" ]; then
-    # shellcheck disable=SC1091
-    . "$HOME/.devrc"
-    installOpenCode
-    ok "opencode installed"
+  if [ -n "$INSTALLED_OPENCODE_VERSION" ]; then
+    warn "opencode ${INSTALLED_OPENCODE_VERSION} found — installing ${OPENCODE_VERSION}..."
   else
-    npm i -g opencode-ai
-    ok "opencode installed via npm"
+    warn "opencode not found — installing ${OPENCODE_VERSION}..."
   fi
+  npm i -g "opencode-ai@${OPENCODE_VERSION}"
+  ok "opencode ${OPENCODE_VERSION} installed via npm"
 fi
 
 # ─── Step 2: Configuration ────────────────────────────────────────────────────

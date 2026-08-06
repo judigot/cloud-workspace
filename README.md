@@ -52,7 +52,7 @@ The session-cookie secret is generated automatically.
 
 The bootstrap then:
 
-1. installs the normal workspace dependencies;
+1. installs the pinned OpenCode version (`opencode-ai@1.4.0`);
 2. issues TLS certificates;
 3. configures OpenCode and the dashboard services;
 4. installs oauth2-proxy;
