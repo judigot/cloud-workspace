@@ -26,7 +26,7 @@ installgithub && \
 usessh && \
 cd ~ && \
 rm -rf ~/workspace && \
-git clone git@github.com:judigot/workspace.git ~/workspace && \
+git clone git@github.com:judigot/cloud-workspace.git ~/workspace && \
 cd ~/workspace && \
 if [ -f /tmp/workspace-env-backup ]; then mv /tmp/workspace-env-backup ~/workspace/.env; fi && \
 if [ -f .env ]; then :; else cp .env.example .env; fi && \
