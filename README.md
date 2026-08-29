@@ -1,4 +1,4 @@
-# Workspace
+# Cloud Workspace
 
 Mobile-first development workspace. Vibe code from your phone — open your app, tap the chat bubble, tell the AI what to change, see it live.
 
