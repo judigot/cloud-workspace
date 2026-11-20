@@ -9,11 +9,6 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ```bash
 set -euo pipefail
 
-if [ "$(id -u)" -eq 0 ]; then
-  printf '%s\n' 'Use the regular EC2 user (usually ubuntu), not root.' >&2
-  exit 1
-fi
-
 . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
 
 initubuntu && \
