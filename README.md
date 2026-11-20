@@ -7,7 +7,8 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
 ```bash
-set -euo pipefail
+set +u
+set -eo pipefail
 
 . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
 
@@ -15,6 +16,8 @@ initubuntu && \
 installnodeenv && \
 installgithub && \
 usessh
+
+git ls-remote git@github.com:judigot/cloud-workspace.git HEAD >/dev/null
 
 if [ -d "$HOME/workspace/.git" ]; then
   case "$(git -C "$HOME/workspace" remote get-url origin)" in
