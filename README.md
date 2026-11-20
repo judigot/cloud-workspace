@@ -7,46 +7,48 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
 ```bash
-set -euo pipefail
-
-. <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
-
-initubuntu && \
-installnodeenv && \
-installgithub && \
-usessh
-
-git ls-remote git@github.com:judigot/cloud-workspace.git HEAD >/dev/null
-
-if [ -d "$HOME/workspace/.git" ]; then
-  case "$(git -C "$HOME/workspace" remote get-url origin)" in
-    git@github.com:judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace)
-      printf '%s\n' 'Existing cloud-workspace checkout preserved.' ;;
-    *)
-      printf '%s\n' 'Existing ~/workspace points to another repository; stopping.' >&2
-      exit 1 ;;
-  esac
-elif [ -e "$HOME/workspace" ]; then
-  printf '%s\n' 'Existing ~/workspace is not a Git checkout; stopping.' >&2
-  exit 1
-else
-  git clone git@github.com:judigot/cloud-workspace.git "$HOME/workspace"
-fi
-cd "$HOME/workspace"
-
-unset BW_SESSION
-
-export PATH="$HOME/.local/bin:$PATH"
-if ! command -v t3 >/dev/null 2>&1; then
-  curl -fsSL https://t3.codes/install.sh | sh
-fi
-hash -r
-t3 --version
-
-t3 up --connect --no-lan
-
-t3 status
-t3 service status
+(
+  set -euo pipefail
+  
+  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+  
+  initubuntu && \
+  installnodeenv && \
+  installgithub && \
+  usessh
+  
+  git ls-remote git@github.com:judigot/cloud-workspace.git HEAD >/dev/null
+  
+  if [ -d "$HOME/workspace/.git" ]; then
+    case "$(git -C "$HOME/workspace" remote get-url origin)" in
+      git@github.com:judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace)
+        printf '%s\n' 'Existing cloud-workspace checkout preserved.' ;;
+      *)
+        printf '%s\n' 'Existing ~/workspace points to another repository; stopping.' >&2
+        exit 1 ;;
+    esac
+  elif [ -e "$HOME/workspace" ]; then
+    printf '%s\n' 'Existing ~/workspace is not a Git checkout; stopping.' >&2
+    exit 1
+  else
+    git clone git@github.com:judigot/cloud-workspace.git "$HOME/workspace"
+  fi
+  cd "$HOME/workspace"
+  
+  unset BW_SESSION
+  
+  export PATH="$HOME/.local/bin:$PATH"
+  if ! command -v t3 >/dev/null 2>&1; then
+    curl -fsSL https://t3.codes/install.sh | sh
+  fi
+  hash -r
+  t3 --version
+  
+  t3 up --connect --no-lan
+  
+  t3 status
+  t3 service status
+)
 ```
 
 ---
