@@ -9,16 +9,16 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ```bash
 (
   set -euo pipefail
-  
+
   . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
-  
+
   initubuntu && \
   installnodeenv && \
   installgithub && \
   usessh
-  
+
   git ls-remote git@github.com:judigot/cloud-workspace.git HEAD >/dev/null
-  
+
   if [ -d "$HOME/workspace/.git" ]; then
     case "$(git -C "$HOME/workspace" remote get-url origin)" in
       git@github.com:judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace)
@@ -34,18 +34,18 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
     git clone git@github.com:judigot/cloud-workspace.git "$HOME/workspace"
   fi
   cd "$HOME/workspace"
-  
+
   unset BW_SESSION
-  
+
   export PATH="$HOME/.local/bin:$PATH"
   if ! command -v t3 >/dev/null 2>&1; then
     curl -fsSL https://t3.codes/install.sh | sh
   fi
   hash -r
   t3 --version
-  
+
   t3 up --connect --no-lan
-  
+
   t3 status
   t3 service status
 )
