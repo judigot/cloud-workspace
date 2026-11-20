@@ -9,23 +9,18 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ```bash
 set -euo pipefail
 
-# SSH into EC2 as the regular Ubuntu user, not root.
 if [ "$(id -u)" -eq 0 ]; then
   printf '%s\n' 'Use the regular EC2 user (usually ubuntu), not root.' >&2
   exit 1
 fi
 
-# Load the shared setup functions and aliases from judigot/user.
 . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
 
-# Reuse the existing Ubuntu, Node/Bun/pnpm, GitHub CLI, and SSH setup.
-# usessh obtains GitHub SSH credentials from your Bitwarden vault.
 initubuntu && \
 installnodeenv && \
 installgithub && \
 usessh
 
-# Do not delete an existing checkout, uncommitted files, or .env on reruns.
 if [ -d "$HOME/workspace/.git" ]; then
   case "$(git -C "$HOME/workspace" remote get-url origin)" in
     git@github.com:judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace)
@@ -42,10 +37,8 @@ else
 fi
 cd "$HOME/workspace"
 
-# Do not carry the Bitwarden unlock session into T3's process environment.
 unset BW_SESSION
 
-# Official stable T3 Code installer. Reuse an existing installation.
 export PATH="$HOME/.local/bin:$PATH"
 if ! command -v t3 >/dev/null 2>&1; then
   curl -fsSL https://t3.codes/install.sh | sh
@@ -53,11 +46,8 @@ fi
 hash -r
 t3 --version
 
-# Authenticate your existing T3 Connect account using the printed URL/code.
-# Start the persistent Linux user service, without enabling LAN access.
 t3 up --connect --no-lan
 
-# Confirm T3 Connect settings and the background service.
 t3 status
 t3 service status
 ```
