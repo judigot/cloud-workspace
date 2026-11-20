@@ -6,10 +6,6 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
-This is a **T3 Code alternative** to the OpenCode workflow in Journey 1. SSH into your fresh Ubuntu EC2 instance as the regular user (usually `ubuntu`, with sudo access) and paste the entire Bash block. Approve the printed browser link and code using your existing **T3 Connect account**. The Bitwarden SSH step also requires you to authenticate to your vault.
-
-**One-shot EC2 bootstrap:**
-
 ```bash
 set -euo pipefail
 
@@ -65,21 +61,6 @@ t3 up --connect --no-lan
 t3 status
 t3 service status
 ```
-
-**Step 2: Open T3 Code and connect an AI provider**
-
-Open [app.t3.codes](https://app.t3.codes), sign in to the same T3 Connect account and select the EC2 environment. In **Settings > Providers**, select that environment and choose **Codex > Connect with ChatGPT**. Complete the OpenAI sign-in to authorize use of your ChatGPT plan. T3 Code manages the Codex runtime for this option; a T3 Connect login alone does not authenticate a coding-model provider.
-
-**What is reused, and what is intentionally skipped:**
-
-- `judigot/user` supplies `initubuntu`, `installnodeenv`, `installgithub`, and `usessh`. Respectively, they set up Ubuntu essentials, the Node.js/Bun/pnpm toolchain, GitHub CLI, and GitHub SSH credentials from Bitwarden. These shared aliases remain the source of truth. Note that `initubuntu` also installs nginx and Certbot even though T3 Connect does not require them.
-- `judigot/cloud-workspace` is cloned over SSH into `~/workspace`, or left intact if already present. No `rm -rf` or re-clone occurs, so an existing `~/workspace/.env` and local changes remain intact. `.env.example` is not copied because the OpenCode dashboard is not being initialized.
-- **Do not run `./scripts/init.sh`** in this T3-only journey: it installs OpenCode and starts its nginx-backed dashboard. T3 Code does not automatically replace the WorkspaceShell or DevBubble from Journey 1.
-- `usessh` imports your personal SSH key onto EC2; use only an EC2 host you trust. A dedicated SSH deploy key is a safer alternative for less-trusted machines.
-- T3 Connect requires no publicly open T3 port or domain certificate. The Linux user service persists after SSH logout and reboot; verify this with `t3 service status`.
-- `judigot/ai` remains the coding-agent instruction source, `judigot/scaffolder` and `judigot/template-monorepo` support new app generation, `judigot/agent-workspace` coordinates parallel tasks, and `judigot/infra` owns Terraform provisioning. None needs to be cloned merely to enroll EC2 with T3 Connect.
-
-**T3 maintenance:** Run `t3 status` and `t3 service status` to diagnose access or service issues. Use `t3 update` to upgrade to a newer stable release. Official guidance: [Install](https://github.com/pingdotgg/t3code/blob/main/docs/user/install.md), [T3 Connect](https://github.com/pingdotgg/t3code/blob/main/docs/user/remote-access.md), [Background service](https://github.com/pingdotgg/t3code/blob/main/docs/user/background-service.md), [ChatGPT provider](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-codex.md).
 
 ---
 
