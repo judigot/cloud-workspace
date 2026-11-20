@@ -61,25 +61,27 @@ You just ran `terraform apply` and have an IP address.
 
 SSH into the instance and load the devrc toolchain:
 
-```sh
-set -euo pipefail
+```bash
+(
+  set -euo pipefail
 
-. <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
 
-# Preserve .env across re-clone (holds domain, creds, API keys)
-[ -f ~/workspace/.env ] && cp ~/workspace/.env /tmp/workspace-env-backup
+  # Preserve .env across re-clone (holds domain, creds, API keys)
+  [ -f ~/workspace/.env ] && cp ~/workspace/.env /tmp/workspace-env-backup
 
-initubuntu && \
-installnodeenv && \
-installgithub && \
-usessh && \
-cd ~ && \
-rm -rf ~/workspace && \
-git clone git@github.com:judigot/cloud-workspace.git ~/workspace && \
-cd ~/workspace && \
-if [ -f /tmp/workspace-env-backup ]; then mv /tmp/workspace-env-backup ~/workspace/.env; fi && \
-if [ -f .env ]; then :; else cp .env.example .env; fi && \
-./scripts/init.sh
+  initubuntu && \
+  installnodeenv && \
+  installgithub && \
+  usessh && \
+  cd ~ && \
+  rm -rf ~/workspace && \
+  git clone git@github.com:judigot/cloud-workspace.git ~/workspace && \
+  cd ~/workspace && \
+  if [ -f /tmp/workspace-env-backup ]; then mv /tmp/workspace-env-backup ~/workspace/.env; fi && \
+  if [ -f .env ]; then :; else cp .env.example .env; fi && \
+  ./scripts/init.sh
+)
 ```
 
 The wizard prompts for:
