@@ -7,8 +7,7 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
 ```bash
-set +u
-set -eo pipefail
+set -euo pipefail
 
 . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
 
