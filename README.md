@@ -6,85 +6,78 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
-This is a **T3 Code alternative** to the OpenCode workflow in Journey 1. Starting from a fresh Ubuntu EC2 instance, SSH in as its regular user (usually `ubuntu`, with sudo access) and paste the **entire block** into Bash. Use your existing **T3 Connect account** when the CLI prints its browser approval link and code.
+This is a **T3 Code alternative** to the OpenCode workflow in Journey 1. SSH into your fresh Ubuntu EC2 instance as the regular user (usually `ubuntu`, with sudo access) and paste the entire Bash block. Approve the printed browser link and code using your existing **T3 Connect account**. The Bitwarden SSH step also requires you to authenticate to your vault.
 
 **One-shot EC2 bootstrap:**
 
 ```bash
 set -euo pipefail
 
-# Run over SSH as the normal Ubuntu EC2 user, not root.
+# SSH into EC2 as the regular Ubuntu user, not root.
 if [ "$(id -u)" -eq 0 ]; then
-  printf '%s\n' 'Sign in as the regular EC2 user (usually ubuntu), not root.' >&2
+  printf '%s\n' 'Use the regular EC2 user (usually ubuntu), not root.' >&2
   exit 1
 fi
 
-# Prerequisites only; avoid the OpenCode/nginx bootstrap.
-sudo apt-get update -y
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  ca-certificates curl git build-essential
-
-# Reuse judigot/user: devrc, aliases and Node.js LTS + npm/Bun/pnpm.
+# Load the shared setup functions and aliases from judigot/user.
 . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
-setupNodeEnv
 
-# Install a current GitHub CLI from GitHub's official apt repository.
-sudo install -d -m 755 /etc/apt/keyrings
-curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-  | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
-sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-printf 'deb [arch=%s signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\n' \
-  "$(dpkg --print-architecture)" \
-  | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
-sudo apt-get update -y
-sudo apt-get install -y gh
+# Reuse the existing Ubuntu, Node/Bun/pnpm, GitHub CLI, and SSH setup.
+# usessh obtains GitHub SSH credentials from your Bitwarden vault.
+initubuntu && \
+installnodeenv && \
+installgithub && \
+usessh
 
-# Reuse the judigot/user GitHub auth helper (browser/device login).
-# HTTPS Git credentials avoid requiring a Bitwarden SSH-key import.
-useGitHub
-env -u GH_TOKEN -u GITHUB_TOKEN gh auth setup-git
-
-# Preserve an existing checkout; never delete the workspace on retry.
+# Do not delete an existing checkout, uncommitted files, or .env on reruns.
 if [ -d "$HOME/workspace/.git" ]; then
   case "$(git -C "$HOME/workspace" remote get-url origin)" in
-    https://github.com/judigot/cloud-workspace|https://github.com/judigot/cloud-workspace.git|git@github.com:judigot/cloud-workspace.git)
+    git@github.com:judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace)
       printf '%s\n' 'Existing cloud-workspace checkout preserved.' ;;
     *)
-      printf '%s\n' 'The existing ~/workspace checkout has a different origin; stopping.' >&2
+      printf '%s\n' 'Existing ~/workspace points to another repository; stopping.' >&2
       exit 1 ;;
   esac
 elif [ -e "$HOME/workspace" ]; then
-  printf '%s\n' '~/workspace already exists and is not a Git checkout; stopping.' >&2
+  printf '%s\n' 'Existing ~/workspace is not a Git checkout; stopping.' >&2
   exit 1
 else
-  git clone https://github.com/judigot/cloud-workspace.git "$HOME/workspace"
+  git clone git@github.com:judigot/cloud-workspace.git "$HOME/workspace"
 fi
+cd "$HOME/workspace"
 
-# Official T3 Code stable-channel installer and T3 Connect setup.
-curl -fsSL https://t3.codes/install.sh | sh
+# Do not carry the Bitwarden unlock session into T3's process environment.
+unset BW_SESSION
+
+# Official stable T3 Code installer. Reuse an existing installation.
 export PATH="$HOME/.local/bin:$PATH"
+if ! command -v t3 >/dev/null 2>&1; then
+  curl -fsSL https://t3.codes/install.sh | sh
+fi
 hash -r
 t3 --version
 
-# Prints a link/code for approval with your EXISTING T3 Connect account.
-# Enables the persistent Linux user service; disables LAN exposure.
+# Authenticate your existing T3 Connect account using the printed URL/code.
+# Start the persistent Linux user service, without enabling LAN access.
 t3 up --connect --no-lan
 
-# Verify the remote access configuration and background service.
+# Confirm T3 Connect settings and the background service.
 t3 status
 t3 service status
 ```
 
 **Step 2: Open T3 Code and connect an AI provider**
 
-Open [app.t3.codes](https://app.t3.codes), sign in to the same T3 Connect account and select the EC2 environment. In **Settings > Providers**, select that environment and choose **Codex > Connect with ChatGPT**. Complete the OpenAI sign-in to authorize use of your ChatGPT plan. T3 Code manages the Codex runtime for this option; your T3 Connect sign-in alone is not a model-provider login.
+Open [app.t3.codes](https://app.t3.codes), sign in to the same T3 Connect account and select the EC2 environment. In **Settings > Providers**, select that environment and choose **Codex > Connect with ChatGPT**. Complete the OpenAI sign-in to authorize use of your ChatGPT plan. T3 Code manages the Codex runtime for this option; a T3 Connect login alone does not authenticate a coding-model provider.
 
-**How this differs from Journey 1:**
+**What is reused, and what is intentionally skipped:**
 
-- `judigot/user` supplies the shared `load-devrc.sh`, `setupNodeEnv` (also aliased as `installnodeenv`) and `useGitHub` (aliased as `authgithub`) helpers. This flow uses GitHub HTTPS authentication instead of `usessh`, which loads SSH keys through Bitwarden.
-- `judigot/cloud-workspace` is cloned into `~/workspace`, ready to open as a project in T3 Code. The existing `scripts/init.sh` is intentionally **not** run: it installs OpenCode, nginx and the OpenCode-backed dashboard.
-- T3 Connect provides remote access without exposing port 3773 publicly or issuing separate nginx/Certbot certificates. The T3 Code Linux user service should survive SSH logout and reboot; confirm with `t3 service status`. The original dashboard, WorkspaceShell, and DevBubble still require Journey 1 and are **not** automatically replaced by T3 Code.
-- `judigot/ai` remains the coding-agent instructions source; `judigot/scaffolder` and `judigot/template-monorepo` handle greenfield app scaffolding; `judigot/agent-workspace` governs parallel implementation; and `judigot/infra` owns Terraform provisioning. None needs to be installed as part of T3 Connect itself.
+- `judigot/user` supplies `initubuntu`, `installnodeenv`, `installgithub`, and `usessh`. Respectively, they set up Ubuntu essentials, the Node.js/Bun/pnpm toolchain, GitHub CLI, and GitHub SSH credentials from Bitwarden. These shared aliases remain the source of truth. Note that `initubuntu` also installs nginx and Certbot even though T3 Connect does not require them.
+- `judigot/cloud-workspace` is cloned over SSH into `~/workspace`, or left intact if already present. No `rm -rf` or re-clone occurs, so an existing `~/workspace/.env` and local changes remain intact. `.env.example` is not copied because the OpenCode dashboard is not being initialized.
+- **Do not run `./scripts/init.sh`** in this T3-only journey: it installs OpenCode and starts its nginx-backed dashboard. T3 Code does not automatically replace the WorkspaceShell or DevBubble from Journey 1.
+- `usessh` imports your personal SSH key onto EC2; use only an EC2 host you trust. A dedicated SSH deploy key is a safer alternative for less-trusted machines.
+- T3 Connect requires no publicly open T3 port or domain certificate. The Linux user service persists after SSH logout and reboot; verify this with `t3 service status`.
+- `judigot/ai` remains the coding-agent instruction source, `judigot/scaffolder` and `judigot/template-monorepo` support new app generation, `judigot/agent-workspace` coordinates parallel tasks, and `judigot/infra` owns Terraform provisioning. None needs to be cloned merely to enroll EC2 with T3 Connect.
 
 **T3 maintenance:** Run `t3 status` and `t3 service status` to diagnose access or service issues. Use `t3 update` to upgrade to a newer stable release. Official guidance: [Install](https://github.com/pingdotgg/t3code/blob/main/docs/user/install.md), [T3 Connect](https://github.com/pingdotgg/t3code/blob/main/docs/user/remote-access.md), [Background service](https://github.com/pingdotgg/t3code/blob/main/docs/user/background-service.md), [ChatGPT provider](https://github.com/pingdotgg/t3code/blob/main/docs/user/providers-codex.md).
 
