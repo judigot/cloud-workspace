@@ -1,6 +1,50 @@
 # Cloud Workspace
 
-Mobile-first development workspace. Vibe code from your phone — open your app, tap the chat bubble, tell the AI what to change, see it live.
+Mobile-first development workspace for the **T3 workflow** (T3 Code + T3 Connect
+on EC2). Vibe code from your phone — open your app, tap the chat bubble, tell
+the AI what to change, see it live. The same hostnames apply to every app you
+run on this workspace, not one product repo.
+
+## Hostnames
+
+These DNS names are the shared platform contract. App repos link here instead
+of redefining domains.
+
+| Host | Purpose |
+|------|---------|
+| `https://dev.judigot.com` | Dev surface — T3/OpenCode, auth-protected Metro/Vite previews, DevBubble injection (`dev.judigot.com/<slug>/`) |
+| `https://judigot.com` | Built / client-facing apps — WorkspaceShell at `/`, clean public app pages at `/<slug>/` (no DevBubble) |
+| `https://db.judigot.com` | Database viewer — HTTPS front door for Drizzle Gateway (or similar) against the EC2 Postgres used while developing |
+
+Route 53 should point all three names at the workspace EC2 public IPv4. Nginx
+terminates TLS for each. Keep ACME challenge locations when renewing certs.
+
+`db.judigot.com` is a convenience for agents and humans on this host. Treat it
+as a temporary personal surface: prefer read-only DB roles, and stop the
+gateway when you are not using it.
+
+### What belongs where
+
+| Concern | Repository |
+|---------|------------|
+| Hostnames, nginx, T3 Connect, DevBubble, workspace shell | **This repo** (`judigot/cloud-workspace`) |
+| App schema, seeds, Expo/EAS, product env | The app repo (for example `judigot/wanderapp`) |
+| Cross-app CI secrets such as `EXPO_TOKEN` | Shared Infisical project (for example `platform` / `shared-ci`), synced into each GitHub repo that needs EAS |
+| App-specific Infisical (`DATABASE_URL`, `EXPO_PUBLIC_*`) | Per-app Infisical project with folders such as `/api`, `/travel`, `/ci` |
+
+An Expo access token is account-scoped. One `EXPO_TOKEN` can build multiple
+Expo apps under the same Expo account. Keep it in shared CI secrets, not only
+inside one product Infisical project.
+
+### T3 agent sessions on this host
+
+- Agents run through T3 Code / T3 Connect against this EC2 workspace.
+- Prefer `dev.judigot.com` for live previews the agent and phone share.
+- Prefer `judigot.com` for built surfaces you would show as “the app.”
+- Use `db.judigot.com` only for inspecting the local workspace database.
+- Git over SSH on this host uses the configured `Host github.com` key
+  (`IdentityFile` in `~/.ssh/config`). The GitHub CLI (`gh`) needs its own
+  `gh auth login` for Actions and PR APIs; SSH alone is not enough.
 
 ## User Journeys
 
@@ -104,8 +148,9 @@ Then it automatically:
 
 | URL | What you see |
 |-----|-------------|
-| `https://judigot.com` | Workspace — OpenCode shell with apps/files panels |
-| `https://dev.judigot.com` | OpenCode (standalone, also embedded in the workspace shell) |
+| `https://judigot.com` | Workspace — OpenCode shell with apps/files panels; built app routes |
+| `https://dev.judigot.com` | Dev surface — OpenCode / T3 (also embedded in the workspace shell) |
+| `https://db.judigot.com` | Database viewer (Drizzle Gateway) for the local workspace Postgres |
 
 ---
 
@@ -255,12 +300,13 @@ judigot.com
         ├─ /api/*         → Dashboard Hono API (:3100)
         │                   reads .env, checks port health
         ├─ /dev-bubble.js → Static widget bundle (/var/www/static/)
-        ├─ /<slug>/       → Public app Vite/frontend route (clean, no widget)
+        ├─ /<slug>/       → Public / built app frontend route (clean, no widget)
         ├─ /<slug>/api/   → App backend API (fullstack only)
         ├─ /<slug>/ws     → App websocket (fullstack+ws)
         └─ /<slug>/       → App backend + sub_filter (laravel)
 
-dev.judigot.com → OpenCode (:4097, auth + dev app routes with widget injection)
+dev.judigot.com → OpenCode / T3 (:4097, auth + live preview routes with widget injection)
+db.judigot.com  → Drizzle Gateway (loopback DB viewer; prefer read-only Postgres role)
 ```
 
 **Unified WorkspaceShell:**
