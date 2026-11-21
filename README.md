@@ -7,15 +7,30 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
 ```bash
+devrc_loader="$(mktemp)"
+devrc_ready=0
+
+if [ -n "$devrc_loader" ] &&
+   curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)" -o "$devrc_loader" &&
+   . "$devrc_loader"; then
+  devrc_ready=1
+else
+  printf '%s\n' 'Failed to load the development environment.' >&2
+fi
+
+[ -z "$devrc_loader" ] || rm -f "$devrc_loader"
+
 (
   set -euo pipefail
 
-  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+  [ "$devrc_ready" -eq 1 ] || exit 1
 
-  initubuntu && \
-  installnodeenv && \
-  installgithub && \
+  initubuntu
+  installnodeenv
+  installgithub
   usessh
+  installaws
+  authaws
 
   git ls-remote git@github.com:judigot/cloud-workspace.git HEAD >/dev/null
 
@@ -62,18 +77,33 @@ You just ran `terraform apply` and have an IP address.
 SSH into the instance and load the devrc toolchain:
 
 ```bash
+devrc_loader="$(mktemp)"
+devrc_ready=0
+
+if [ -n "$devrc_loader" ] &&
+   curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)" -o "$devrc_loader" &&
+   . "$devrc_loader"; then
+  devrc_ready=1
+else
+  printf '%s\n' 'Failed to load the development environment.' >&2
+fi
+
+[ -z "$devrc_loader" ] || rm -f "$devrc_loader"
+
 (
   set -euo pipefail
 
-  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+  [ "$devrc_ready" -eq 1 ] || exit 1
 
   # Preserve .env across re-clone (holds domain, creds, API keys)
   [ -f ~/workspace/.env ] && cp ~/workspace/.env /tmp/workspace-env-backup
 
-  initubuntu && \
-  installnodeenv && \
-  installgithub && \
-  usessh && \
+  initubuntu
+  installnodeenv
+  installgithub
+  usessh
+  installaws
+  authaws
   cd ~ && \
   rm -rf ~/workspace && \
   git clone git@github.com:judigot/cloud-workspace.git ~/workspace && \
