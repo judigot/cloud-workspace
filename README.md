@@ -15,6 +15,7 @@ of redefining domains.
 | `https://dev.judigot.com` | Dev surface — T3/OpenCode, auth-protected Metro/Vite previews, DevBubble injection (`dev.judigot.com/<slug>/`) |
 | `https://judigot.com` | Built / client-facing apps — WorkspaceShell at `/`, clean public app pages at `/<slug>/` (no DevBubble) |
 | `https://db.judigot.com` | Database viewer — HTTPS front door for Drizzle Gateway (or similar) against the EC2 Postgres used while developing |
+| `https://dev.judigot.com/wanderapp/build` | Wanderapp native build console (Android APK today; iOS later). Not a product app route on `judigot.com`. |
 
 Route 53 should point all three names at the workspace EC2 public IPv4. Nginx
 terminates TLS for each. Keep ACME challenge locations when renewing certs.
