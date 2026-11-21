@@ -7,23 +7,10 @@ Mobile-first development workspace. Vibe code from your phone — open your app,
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
 ```bash
-devrc_loader="$(mktemp)"
-devrc_ready=0
-
-if [ -n "$devrc_loader" ] &&
-   curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)" -o "$devrc_loader" &&
-   . "$devrc_loader"; then
-  devrc_ready=1
-else
-  printf '%s\n' 'Failed to load the development environment.' >&2
-fi
-
-[ -z "$devrc_loader" ] || rm -f "$devrc_loader"
-
 (
   set -euo pipefail
 
-  [ "$devrc_ready" -eq 1 ] || exit 1
+  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
 
   initubuntu
   installnodeenv
@@ -77,23 +64,10 @@ You just ran `terraform apply` and have an IP address.
 SSH into the instance and load the devrc toolchain:
 
 ```bash
-devrc_loader="$(mktemp)"
-devrc_ready=0
-
-if [ -n "$devrc_loader" ] &&
-   curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)" -o "$devrc_loader" &&
-   . "$devrc_loader"; then
-  devrc_ready=1
-else
-  printf '%s\n' 'Failed to load the development environment.' >&2
-fi
-
-[ -z "$devrc_loader" ] || rm -f "$devrc_loader"
-
 (
   set -euo pipefail
 
-  [ "$devrc_ready" -eq 1 ] || exit 1
+  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
 
   # Preserve .env across re-clone (holds domain, creds, API keys)
   [ -f ~/workspace/.env ] && cp ~/workspace/.env /tmp/workspace-env-backup
