@@ -47,6 +47,14 @@ inside one product Infisical project.
   (`IdentityFile` in `~/.ssh/config`). The GitHub CLI (`gh`) needs its own
   `gh auth login` for Actions and PR APIs; SSH alone is not enough.
 
+### Grok Bot computer (current dev machine)
+
+T3 runs on Grok Bot's computer and is reached from the phone through an ngrok static domain. A reset can wipe installed programs outside `/home/box` while keeping the home folder (repos, configs, logins). After a reset, or whenever T3 is unreachable, run:
+
+```bash
+~/bin/devbox-up.sh   # copy of scripts/devbox-up.sh
+```
+
 ## User Journeys
 
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
@@ -370,6 +378,7 @@ Phone → judigot.com (WorkspaceShell) → tap app chip → /scaffolder/
 | `scripts/deploy-nginx.sh` | Regenerate + deploy nginx config + copy widget bundle to `/var/www/static/` |
 | `scripts/generate-nginx.sh` | Generate nginx.conf from env vars (includes `sub_filter` injection) |
 | `scripts/health-check.sh` | Smoke test all endpoints |
+| `scripts/devbox-up.sh` | Grok Bot computer: reinstall T3, Codex, ngrok, Cursor CLI link after a reset and restart T3 + ngrok tunnel (idempotent) |
 
 ## Configuration
 
