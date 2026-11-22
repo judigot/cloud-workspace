@@ -59,51 +59,78 @@ T3 runs on Grok Bot's computer and is reached from the phone through an ngrok st
 
 ### Journey 0: T3 Code + T3 Connect (Fresh EC2)
 
+Paste this single block on a brand-new Ubuntu EC2 (`ubuntu` user). Ends with T3
+running and reachable from the T3 phone app / [app.t3.codes](https://app.t3.codes)
+via T3 Connect. Safe to re-run (never deletes existing `~/workspace`).
+
+**Interactive prompts** (marked in the script output; do these when asked):
+
+1. GitHub SSH key — `installgithub` / `usessh`
+2. AWS / Bitwarden — `authaws`
+3. T3 Connect sign-in / pairing — URL or code during bootstrap
+
 ```bash
-(
-  set -euo pipefail
+set -euo pipefail
 
-  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+# Optional: test a branch before merge — CW_REF=my-branch
+export CW_REF="${CW_REF:-main}"
 
-  initubuntu
-  installnodeenv
-  installgithub
-  usessh
-  installaws
-  authaws
+. <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+# load-devrc helpers are aliases; enable them (and avoid wrapping this block in
+# `(...)` — bash would parse the whole subshell before shopt can take effect).
+shopt -s expand_aliases
 
-  git ls-remote git@github.com:judigot/cloud-workspace.git HEAD >/dev/null
+initubuntu
+installnodeenv
 
-  if [ -d "$HOME/workspace/.git" ]; then
-    case "$(git -C "$HOME/workspace" remote get-url origin)" in
-      git@github.com:judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace.git|https://github.com/judigot/cloud-workspace)
-        printf '%s\n' 'Existing cloud-workspace checkout preserved.' ;;
-      *)
-        printf '%s\n' 'Existing ~/workspace points to another repository; stopping.' >&2
-        exit 1 ;;
-    esac
-  elif [ -e "$HOME/workspace" ]; then
-    printf '%s\n' 'Existing ~/workspace is not a Git checkout; stopping.' >&2
-    exit 1
-  else
-    git clone git@github.com:judigot/cloud-workspace.git "$HOME/workspace"
-  fi
-  cd "$HOME/workspace"
+# --- interactive: GitHub SSH ---
+installgithub
+usessh
 
-  unset BW_SESSION
+# --- interactive: AWS / Bitwarden ---
+installaws
+authaws
+unset BW_SESSION
 
-  export PATH="$HOME/.local/bin:$PATH"
-  if ! command -v t3 >/dev/null 2>&1; then
-    curl -fsSL https://t3.codes/install.sh | sh
-  fi
-  hash -r
-  t3 --version
+# Clone ~/workspace (idempotent guard) + install/start T3 + T3 Connect
+# --- interactive: T3 Connect sign-in / pairing (inside the script) ---
+# Process substitution keeps stdin free for prompts (curl|sh would steal it).
+bash <(curl -fsSL "https://raw.githubusercontent.com/judigot/cloud-workspace/${CW_REF}/scripts/ec2-t3-bootstrap.sh?cachebustkey=$(date +%s)")
+```
 
-  t3 up --connect --no-lan
+Verified against `t3` v0.1.11 (`t3 up --connect --no-lan --headless` installs
+the user systemd unit `t3code.service` and enables T3 Connect). Older builds
+without `t3 up` fall back to `t3 serve` in tmux plus a user unit. Set
+`CW_REF` to try a branch before merging (raw script URL + fresh `git clone --branch`).
 
-  t3 status
-  t3 service status
-)
+#### Verify
+
+```bash
+t3 --version
+t3 status
+t3 service status
+t3 connect status
+systemctl --user status t3code.service
+```
+
+On the phone: open the T3 app or https://app.t3.codes and confirm this host is
+online. Optional QR: `t3 pair`.
+
+#### Troubleshooting
+
+| Symptom | What to do |
+|---------|------------|
+| T3 not reachable from phone / app.t3.codes | `t3 connect status`. If the tunnel is offline, refresh app.t3.codes (or the phone app), wait ~1 minute, then re-check. |
+| Tunnel stays offline | `journalctl --user -u t3code.service -n 80 --no-pager` and `t3 doctor`. Re-run `t3 up --connect --no-lan --headless` (or the bootstrap script). |
+| Service dead after SSH logout | Enable linger: `sudo loginctl enable-linger ubuntu`, then `t3 service restart`. |
+| Need a fresh pairing code | `t3 pair` |
+| Fallback path (no `t3 up`) | `tmux attach -t t3code` · logs: `tmux capture-pane -t t3code:serve -p` then inspect the pane |
+
+Re-run the same paste block, or just:
+
+```bash
+export CW_REF="${CW_REF:-main}"
+bash <(curl -fsSL "https://raw.githubusercontent.com/judigot/cloud-workspace/${CW_REF}/scripts/ec2-t3-bootstrap.sh?cachebustkey=$(date +%s)")
 ```
 
 ---
@@ -378,6 +405,7 @@ Phone → judigot.com (WorkspaceShell) → tap app chip → /scaffolder/
 | `scripts/deploy-nginx.sh` | Regenerate + deploy nginx config + copy widget bundle to `/var/www/static/` |
 | `scripts/generate-nginx.sh` | Generate nginx.conf from env vars (includes `sub_filter` injection) |
 | `scripts/health-check.sh` | Smoke test all endpoints |
+| `scripts/ec2-t3-bootstrap.sh` | Fresh EC2: idempotent `~/workspace` clone guard + T3 Code / T3 Connect (`t3 up` → `t3code.service`) |
 | `scripts/devbox-up.sh` | Grok Bot computer: reinstall T3, Codex, ngrok, Cursor CLI link after a reset and restart T3 + ngrok tunnel (idempotent) |
 
 ## Configuration
