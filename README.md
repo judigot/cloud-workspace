@@ -70,31 +70,32 @@ via T3 Connect. Safe to re-run (never deletes existing `~/workspace`).
 3. T3 Connect sign-in / pairing — URL or code during bootstrap
 
 ```bash
-(
-  set -euo pipefail
+set -euo pipefail
 
-  # Optional: test a branch before merge — CW_REF=my-branch
-  export CW_REF="${CW_REF:-main}"
+# Optional: test a branch before merge — CW_REF=my-branch
+export CW_REF="${CW_REF:-main}"
 
-  . <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+. <(curl -fsSL "https://raw.githubusercontent.com/judigot/user/main/load-devrc.sh?cachebustkey=$(date +%s)")
+# load-devrc helpers are aliases; enable them (and avoid wrapping this block in
+# `(...)` — bash would parse the whole subshell before shopt can take effect).
+shopt -s expand_aliases
 
-  initubuntu
-  installnodeenv
+initubuntu
+installnodeenv
 
-  # --- interactive: GitHub SSH ---
-  installgithub
-  usessh
+# --- interactive: GitHub SSH ---
+installgithub
+usessh
 
-  # --- interactive: AWS / Bitwarden ---
-  installaws
-  authaws
-  unset BW_SESSION
+# --- interactive: AWS / Bitwarden ---
+installaws
+authaws
+unset BW_SESSION
 
-  # Clone ~/workspace (idempotent guard) + install/start T3 + T3 Connect
-  # --- interactive: T3 Connect sign-in / pairing (inside the script) ---
-  # Process substitution keeps stdin free for prompts (curl|sh would steal it).
-  bash <(curl -fsSL "https://raw.githubusercontent.com/judigot/cloud-workspace/${CW_REF}/scripts/ec2-t3-bootstrap.sh?cachebustkey=$(date +%s)")
-)
+# Clone ~/workspace (idempotent guard) + install/start T3 + T3 Connect
+# --- interactive: T3 Connect sign-in / pairing (inside the script) ---
+# Process substitution keeps stdin free for prompts (curl|sh would steal it).
+bash <(curl -fsSL "https://raw.githubusercontent.com/judigot/cloud-workspace/${CW_REF}/scripts/ec2-t3-bootstrap.sh?cachebustkey=$(date +%s)")
 ```
 
 Verified against `t3` v0.1.11 (`t3 up --connect --no-lan --headless` installs
