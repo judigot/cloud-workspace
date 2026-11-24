@@ -1,8 +1,8 @@
 # Cloud Workspace
 
-Mobile-first development workspace for the **T3 workflow** (T3 Code + T3 Connect
-on EC2). Vibe code from your phone — open your app, tap the chat bubble, tell
-the AI what to change, see it live. The same hostnames apply to every app you
+Mobile-first development workspace for the **T3 workflow**. Vibe code from your
+phone — open your app, tap the chat bubble, tell the AI what to change, see it
+live. The same hostnames apply to every app you
 run on this workspace, not one product repo.
 
 ## Hostnames
@@ -47,13 +47,56 @@ inside one product Infisical project.
   (`IdentityFile` in `~/.ssh/config`). The GitHub CLI (`gh`) needs its own
   `gh auth login` for Actions and PR APIs; SSH alone is not enough.
 
-### Grok Bot computer (current dev machine)
+### ChatGPT-to-T3 host and recovery
 
-T3 runs on Grok Bot's computer and is reached from the phone through an ngrok static domain. A reset can wipe installed programs outside `/home/box` while keeping the home folder (repos, configs, logins). After a reset, or whenever T3 is unreachable, run:
+This repository covers host provisioning and recovery. The canonical integration
+contract, API and client instructions belong in the
+[ChatGPT-to-T3 orchestrator guide](https://github.com/judigot/agent-workspace/blob/main/docs/chatgpt-t3-orchestrator.md)
+in `judigot/agent-workspace`. See also the
+[Grok runtime runbook](https://github.com/judigot/agent-workspace/blob/main/docs/grok-t3-runtime.md)
+and [ngrok runbook](https://github.com/judigot/agent-workspace/blob/main/docs/ngrok.md).
+The canonical guide link is pending publication in that repository.
 
-```bash
-~/bin/devbox-up.sh   # copy of scripts/devbox-up.sh
-```
+The existing Grok-host path has T3 and a REST/MCP bridge on the host. Its public
+HTTPS transport is configurable: the host operator reports Tailscale Funnel is
+live and preferred for the bridge, pending authenticated end-to-end verification
+from ChatGPT. Keep ngrok as a backup until the ChatGPT Sites plugin has switched
+upstream and that verification succeeds. A T3 client can reach T3 through its
+own configured route. Keep the bridge and T3 upstreams distinct and verify the
+actual transport targets and access policies. This topology can run on another
+authorized host, but an EC2 migration has not been tested. Use the existing
+authorized provider and billing route; do not switch to a paid API route as a
+recovery step.
+
+After a reset or outage, preserve local T3 data, uncommitted work, configuration
+and credentials. Inspect the actual running processes, ports, bridge upstream,
+tunnel account, target and access policy before restarting anything; do not
+reinstall or overwrite them as a first step. Verify in order:
+
+1. Check that T3 responds locally on its configured address and that the
+   bridge's local health endpoint responds. Verify the bridge can reach its
+   configured T3 upstream.
+2. Check public bridge health through the configured transport, then perform the
+   authenticated list operation described in the canonical guide. A public
+   health response alone does not prove authentication or T3 connectivity.
+3. If the public endpoint returns `ERR_NGROK_3200`, investigate the offline
+   tunnel and its verified target using the ngrok runbook; recheck local
+   services before the public route. An offline host cannot be repaired by
+   redeploying the ChatGPT Site.
+
+The host operator reports external `/health` and `/projects` returned HTTP 200,
+unauthenticated MCP calls were rejected, Funnel uses the existing bearer secret,
+host setup now restarts it after reset, and alerts check Funnel first. These are
+host reports, not independently verified results or proof of ChatGPT integration.
+Funnel is public HTTPS, not private access; enforce authentication and the
+configured access policy. Neither transport guarantees host uptime or provides
+storage or backup. Local threads and credentials remain dependent on the host;
+unattended recovery is not established by these reports.
+
+The tracked [`scripts/devbox-up.sh`](scripts/devbox-up.sh) contains no Funnel
+restart setup and differs from the newer host startup and watchdog described in
+the ngrok runbook. Reconcile that drift as a separate follow-up; do not assume
+the tracked script reproduces the current host configuration.
 
 ## User Journeys
 
@@ -406,7 +449,7 @@ Phone → judigot.com (WorkspaceShell) → tap app chip → /scaffolder/
 | `scripts/generate-nginx.sh` | Generate nginx.conf from env vars (includes `sub_filter` injection) |
 | `scripts/health-check.sh` | Smoke test all endpoints |
 | `scripts/ec2-t3-bootstrap.sh` | Fresh EC2: idempotent `~/workspace` clone guard + T3 Code / T3 Connect (`t3 up` → `t3code.service`) |
-| `scripts/devbox-up.sh` | Grok Bot computer: reinstall T3, Codex, ngrok, Cursor CLI link after a reset and restart T3 + ngrok tunnel (idempotent) |
+| `scripts/devbox-up.sh` | Older Grok-host startup script; differs from the newer host startup and watchdog described above |
 
 ## Configuration
 
